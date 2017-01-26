@@ -103,6 +103,9 @@ RGBTools rgb(3,4,5);
 
 
 void setup() {
+  // Set LED color
+  rgb.setColor(Color::OFF);
+    
   // you can print to the serial monitor while the joystick is active!
   Serial.begin(9600);
 
@@ -140,10 +143,6 @@ void setup() {
   {
     g_current_mode = HANDBRAKE_ANALOG_MODE;
   }
-
-  // Set LED color
-  rgb.setColor(Color::WHITE);
-  rgb.blinkEnable(500, 80);
 }
 
 
