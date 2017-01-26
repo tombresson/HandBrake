@@ -23,6 +23,8 @@
 
 #define HANDBRAKE_ADC_MAX                 1023U
 
+#define HANDBRAKE_BUTTON_HOLD_TIME_MS     5000U
+
 // Serial Config Parsing Timeout
 #define HANDBRAKE_SERIAL_TIMEOUT          5000
 
@@ -35,15 +37,36 @@
 #define HANDBRAKE_BUTTON_MODE             0x02
 #define HANDBRAKE_ANALOG_MODE             0x04
 #define HANDBRAKE_CALIBRATE_MODE          0x08
-#define HANDBRAKE_CONFIG_MODE             0x16
+#define HANDBRAKE_CONFIG_MODE             0x10
+
+/*********************************** DEFINITIONS ************************************/
+
+typedef struct
+{
+  uint32_t config_mode;
+  uint32_t led_color;
+  uint32_t blink_interval;
+  uint8_t  duty_cycle;
+}configMode_t;
 
 /******************************* FUNCTION DEFINITIONS *******************************/
 
 static void handbrakeInitialConditions(void);
 static void handbrakeProcessSerial(void);
 static void handbrakePrintConfigMenu(void);
+static void handbrakeServiceConfigButton(void);
+static uint32_t handbrakeGetModeIdx(void);
 
 /************************************* GLOBALS **************************************/
+
+// Array of config modes
+static configMode_t modes[] = 
+{
+  {HANDBRAKE_KEYBOARD_MODE, Color::GREEN,     0,  0}, 
+  {HANDBRAKE_BUTTON_MODE,   Color::BLUE,      0,  0}, 
+  {HANDBRAKE_ANALOG_MODE,   Color::RED,       0,  0}, 
+  {HANDBRAKE_CONFIG_MODE,   Color::PURPLE, 1000, 90}
+};
 
 // Configure the number of buttons.  Be careful not
 // to use a pin for both a digital button and analog
@@ -99,12 +122,20 @@ static uint8_t g_serial_buff[HANDBRAKE_SERIAL_BUFF_SIZE];
 // initialize a common cathode LED
 RGBTools rgb(3,4,5);
 
+// Mode switch button input pin
+static uint32_t config_button = 6;
+
 /**************************************  CODE ****************************************/
 
-
-void setup() {
+/**
+ * @brief Initializes the Handbrake controller. Standard Arduino setup function.
+ */
+void setup(void) {
   // Set LED color
   rgb.setColor(Color::OFF);
+
+  // Setup config button
+  pinMode(config_button, INPUT_PULLUP);
     
   // you can print to the serial monitor while the joystick is active!
   Serial.begin(9600);
@@ -123,14 +154,14 @@ void setup() {
     * }
     */
 
-  // Set initial conditions
+  // Set initial joystick conditions
   handbrakeInitialConditions();
 
 
-#ifdef HANDBRAKE_DEBUG
+  #ifdef HANDBRAKE_DEBUG
   delay(1000);
   Serial.println("Handbrake Initialized.");
-#endif
+  #endif
 
   // @todo Load stored Key Binding from eeprom
 
@@ -143,10 +174,16 @@ void setup() {
   {
     g_current_mode = HANDBRAKE_ANALOG_MODE;
   }
+
+  // Set the LED color for the current mode
+  uint32_t mode_idx = handbrakeGetModeIdx();
+  rgb.setColor(modes[mode_idx].led_color);
 }
 
-
-void loop() {
+/**
+ * @brief Main loop for the Handbrake controller. Standard Arduino loop function.
+ */
+void loop(void) {
 
   if (g_current_mode != HANDBRAKE_CONFIG_MODE)
   {
@@ -197,10 +234,17 @@ void loop() {
   // Service the LED
   rgb.serviceLED();
 
+  // Service the config button
+  handbrakeServiceConfigButton();
+
   // a brief delay, so this runs "only" 200 times per second
   delay(5);
 }
 
+/**
+ * @brief Processes and handles data coming in from the Serial interface. This is for advanced
+ * configuration functions and debugging.
+ */
 static void handbrakeProcessSerial(void)
 {
   // Process Recognized commands
@@ -227,7 +271,7 @@ static void handbrakeProcessSerial(void)
   }
   else if ((byte == 'b') || (byte == 'B'))
   {
-
+    // @todo When developed, the button threshold should be a 0-100% value of the calibrated range
   }
   else
   {
@@ -235,6 +279,9 @@ static void handbrakeProcessSerial(void)
   }
 }
 
+/**
+ * @brief A function simply to display the configuration menu via the serial terminal
+ */
 static void handbrakePrintConfigMenu(void)
 {
   Serial.println("\f       Handbrake Config      ");
@@ -243,6 +290,66 @@ static void handbrakePrintConfigMenu(void)
   Serial.println(" B - Set Button Threshold    ");
   Serial.println(" S - Set Analog Value (Test) ");
 }
+
+/**
+ * @brief Handles the button presses. Cycles modes when pressed and released, enters cal mode
+ * when button is held down for a time greater than the specified threshold.
+ */
+static void handbrakeServiceConfigButton(void)
+{
+  static bool button_prev_state = false;
+
+  bool button_curr_state = (digitalRead(config_button) == LOW);
+
+  bool button_held = false;
+  static unsigned long hold_time_start = 0U;
+  if(button_curr_state)
+  {
+    if((millis() - hold_time_start) > HANDBRAKE_BUTTON_HOLD_TIME_MS)
+    {
+      // Change mode to Calibrate Mode
+      g_current_mode = HANDBRAKE_CALIBRATE_MODE;
+      rgb.setColor(Color::WHITE);
+      rgb.blinkEnable(500, 50);
+
+      // Set button held, to not change modes below
+      button_held = true;
+
+      button_curr_state = false;
+    }
+  }
+  else
+  {
+    hold_time_start = millis();
+  }
+
+  // Detect a change in state only on release
+  if((button_curr_state ^ button_prev_state) && !button_curr_state && !button_held)
+  {    
+    // Find index of current mode
+    uint32_t mode_idx = handbrakeGetModeIdx();
+
+    // Advance the mode idx to the next valid mode
+    if(++mode_idx >= COUNT_OF(modes))
+    {
+        mode_idx = 0U;
+    }
+
+    // Set the current mode and the LED
+    g_current_mode = modes[mode_idx].config_mode;
+    rgb.setColor(modes[mode_idx].led_color);
+    rgb.blinkEnable(modes[mode_idx].blink_interval, modes[mode_idx].duty_cycle);
+
+    #ifdef HANDBRAKE_DEBUG
+    Serial.print("Mode changed to: ");
+    Serial.println(g_current_mode);
+    #endif
+  }
+
+  // Store current button state
+  button_prev_state = button_curr_state;
+}
+
 
 static void handbrakeInitialConditions(void)
 {
@@ -255,3 +362,21 @@ static void handbrakeInitialConditions(void)
   Joystick.hat(-1);
 }
 
+
+static uint32_t handbrakeGetModeIdx(void)
+{
+    // Find index of current mode
+    uint32_t idx = 0U;
+    while ( (idx < COUNT_OF(modes)) && (modes[idx].config_mode != g_current_mode))
+    { 
+        ++idx; 
+    }
+    // If idx is the number of elements, element wasn't found in the list.  
+    if(idx == COUNT_OF(modes))
+    {
+      // Reset the index to 0
+      idx = 0U;
+    }
+
+    return idx;
+}
