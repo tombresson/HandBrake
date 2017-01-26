@@ -134,30 +134,38 @@ void RGBTools::fadeTo(uint8_t r, uint8_t g, uint8_t b, int steps, int duration) 
 */
 void RGBTools::blinkEnable(uint32_t rate, uint8_t duty_cycle)
 {
-  if (duty_cycle == 100U)
+  // Only blink if the rate is greater than zero
+  if(rate > 0U)
   {
-    // Disable blinking
-    this->blink_enabled = false;
+    if (duty_cycle == 100U)
+    {
+      // Disable blinking
+      this->blink_enabled = false;
 
-    // turn LED back on fully
-    this->setColor(this->curr_r, this->curr_g, this->curr_b);
+      // turn LED back on fully
+      this->setColor(this->curr_r, this->curr_g, this->curr_b);
 
-    // Reset LED state
-    this->blink_led_state = true;
-  }
-  else if ( duty_cycle == 0U)
-  {
-    this->setColor(Color::OFF);
+      // Reset LED state
+      this->blink_led_state = true;
+    }
+    else if ( duty_cycle == 0U)
+    {
+      this->setColor(Color::OFF);
+    }
+    else
+    {
+      this->blink_rate_ms = rate;
+
+      // limit duty cycle to 100
+      this->blink_duty_cycle = min(duty_cycle, 100);
+
+      this->blink_enabled = true;
+      this->blink_led_state = true;
+    }
   }
   else
   {
-    this->blink_rate_ms = rate;
-
-    // limit duty cycle to 100
-    this->blink_duty_cycle = min(duty_cycle, 100);
-
-    this->blink_enabled = true;
-    this->blink_led_state = true;
+    blinkDisable();
   }
 }
 
