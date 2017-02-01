@@ -23,6 +23,8 @@
 
 #define HANDBRAKE_ADC_MAX                 1023U
 
+#define HANDBRAKE_JOY_AXIS_MAX            1023U
+
 #define HANDBRAKE_BUTTON_HOLD_TIME_MS     5000U
 
 // Serial Config Parsing Timeout
@@ -199,15 +201,33 @@ void loop(void) {
     // Read hall sensor
     uint16_t data = analogRead(1);
 
+    //Apply calibration transform to the data
+    float position = (data - cal_min)/(cal_max - cal_min)
+
+    // Saturate data
+    if(position < 0.0)
+    {
+      position = 0.0;
+    }
+    else if (position > 100.0)
+    {
+      position = 100.0;
+    }
+    else
+    {
+      // Don't modify the value
+    }
+
     if (g_current_mode == HANDBRAKE_ANALOG_MODE)
     {
       // set the Z axis position to data
-      Joystick.Z(data);
+      Joystick.Z(position * HANDBRAKE_JOY_AXIS_MAX);
       Joystick.send_now();
     }
     else if (g_current_mode == HANDBRAKE_BUTTON_MODE)
     {
-      if (data >= g_button_thresh)
+      // @todo: Add hysteresis to button press of 2-5%?
+      if (position >= g_button_thresh)
       {
         Joystick.button(1, true);
       }
@@ -219,7 +239,8 @@ void loop(void) {
     }
     else if (g_current_mode == HANDBRAKE_KEYBOARD_MODE)
     {
-      if (data >= g_button_thresh)
+      // @todo: Add hysteresis to key press of 2-5%?
+      if (position >= g_button_thresh)
       {
         Keyboard.set_key1(g_bound_key);
       }
