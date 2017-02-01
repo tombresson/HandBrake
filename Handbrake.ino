@@ -174,11 +174,11 @@ void setup(void) {
   Serial.println("Handbrake Initialized.");
   #endif
 
-  // @todo Load stored Key Binding from eeprom
+  // @todo: Load stored Key Binding from eeprom
 
-  // @todo Load button threshold from eeprom
+  // @todo: Load button threshold from eeprom
 
-  // @todo Load the mode from eeprom
+  // @todo: Load the mode from eeprom
 
   // If mode is undefined, load analog mode
   if (g_current_mode == 0U)
@@ -203,7 +203,7 @@ void loop(void) {
 
     //Apply calibration transform to the data
     float position = (data - cal_min)/(cal_max - cal_min)
-
+    
     // Saturate data
     if(position < 0.0)
     {
@@ -301,7 +301,7 @@ static void handbrakeProcessSerial(void)
   }
   else if ((byte == 'b') || (byte == 'B'))
   {
-    // @todo When developed, the button threshold should be a 0-100% value of the calibrated range
+    // @todo: When developed, the button threshold should be a 0-100% value of the calibrated range
   }
   else
   {
