@@ -49,6 +49,15 @@ typedef struct
   uint8_t  duty_cycle;
 }configMode_t;
 
+typedef struct
+{
+  uint32_t cal_max;         //< Raw ADC value that represents 100%
+  uint32_t cal_min;         //< Raw ADC value that represents 0%
+  uint32_t mode;            //< Current mode the device is in
+  uin32_t button_threshold; //< Threshold (0%-100%) where the button is activated/deactivated
+  uint16_t conf_key_code;   //< Configured key for the Keyboard Mode
+} eepromData_t
+
 /******************************* FUNCTION DEFINITIONS *******************************/
 
 static void handbrakeInitialConditions(void);
