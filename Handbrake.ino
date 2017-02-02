@@ -56,9 +56,9 @@ typedef struct
   uint32_t cal_max;         //< Raw ADC value that represents 100%
   uint32_t cal_min;         //< Raw ADC value that represents 0%
   uint32_t mode;            //< Current mode the device is in
-  uin32_t button_threshold; //< Threshold (0%-100%) where the button is activated/deactivated
+  uint32_t button_threshold; //< Threshold (0%-100%) where the button is activated/deactivated
   uint16_t conf_key_code;   //< Configured key for the Keyboard Mode
-} eepromData_t
+} eepromData_t;
 
 /******************************* FUNCTION DEFINITIONS *******************************/
 
@@ -133,8 +133,20 @@ static uint8_t g_serial_buff[HANDBRAKE_SERIAL_BUFF_SIZE];
 // initialize a common cathode LED
 RGBTools rgb(3,4,5);
 
+static eepromData_t g_saved_data = 
+{
+  .cal_max = 0U,
+  .cal_min = 0U,
+  .mode = 0U,
+  .button_threshold = 0U,
+  .conf_key_code = 0U,
+};
+
+// ********** INPUT CONFIG ************/
 // Mode switch button input pin
-static uint32_t config_button = 6;
+static const uint32_t config_button_pin = 6U;
+
+static const uint32_t hall_analog_pin = 0U;
 
 /**************************************  CODE ****************************************/
 
@@ -145,9 +157,9 @@ void setup(void) {
   // Set LED color
   rgb.setColor(Color::OFF);
 
-  // Setup config button
-  pinMode(config_button, INPUT_PULLUP);
-    
+  // Setup config pins
+  pinMode(config_button_pin, INPUT_PULLUP);
+   
   // you can print to the serial monitor while the joystick is active!
   Serial.begin(9600);
 
@@ -174,11 +186,7 @@ void setup(void) {
   Serial.println("Handbrake Initialized.");
   #endif
 
-  // @todo: Load stored Key Binding from eeprom
-
-  // @todo: Load button threshold from eeprom
-
-  // @todo: Load the mode from eeprom
+  // @todo: Load EEPROM data into global structure 
 
   // If mode is undefined, load analog mode
   if (g_current_mode == 0U)
@@ -199,11 +207,25 @@ void loop(void) {
   if (g_current_mode != HANDBRAKE_CONFIG_MODE)
   {
     // Read hall sensor
-    uint16_t data = analogRead(1);
+    uint16_t data = analogRead(hall_analog_pin);
 
     //Apply calibration transform to the data
-    float position = (data - cal_min)/(cal_max - cal_min)
-    
+    float divisior = (g_saved_data.cal_max -  g_saved_data.cal_min);
+    float position = 0.0;
+
+    // Avoid div by 0
+    if(divisior > 0.0)
+    {
+      position = (data - g_saved_data.cal_min) / divisior;
+    }
+
+    #ifdef HANDBRAKE_DEBUG
+    Serial.print("data: ");
+    Serial.print(data);
+    Serial.print(" | position: ");
+    Serial.println(position);
+    #endif
+
     // Saturate data
     if(position < 0.0)
     {
@@ -329,7 +351,7 @@ static void handbrakeServiceConfigButton(void)
 {
   static bool button_prev_state = false;
 
-  bool button_curr_state = (digitalRead(config_button) == LOW);
+  bool button_curr_state = (digitalRead(config_button_pin) == LOW);
 
   bool button_held = false;
   static unsigned long hold_time_start = 0U;
