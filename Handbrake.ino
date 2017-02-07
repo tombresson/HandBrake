@@ -19,6 +19,9 @@
 // Turns Debug on and off
 #define HANDBRAKE_DEBUG                   1
 
+/// @brief Definition of the revision number for checking to see if EEPROM data is compatable
+#define REVISION_NUM                      1
+
 #define HANDBRAKE_SERIAL_BUFF_SIZE        64U
 
 #define HANDBRAKE_ADC_MAX                 1023U
@@ -53,11 +56,12 @@ typedef struct
 
 typedef struct
 {
-  uint32_t cal_max;         //< Raw ADC value that represents 100%
-  uint32_t cal_min;         //< Raw ADC value that represents 0%
-  uint32_t mode;            //< Current mode the device is in
+  uint32_t  rev_number;      //< Revision number of the eeprom data struct
+  uint32_t cal_max;          //< Raw ADC value that represents 100%
+  uint32_t cal_min;          //< Raw ADC value that represents 0%
+  uint32_t mode;             //< Current mode the device is in
   uint32_t button_threshold; //< Threshold (0%-100%) where the button is activated/deactivated
-  uint16_t conf_key_code;   //< Configured key for the Keyboard Mode
+  uint16_t conf_key_code;    //< Configured key for the Keyboard Mode
 } eepromData_t;
 
 /******************************* FUNCTION DEFINITIONS *******************************/
