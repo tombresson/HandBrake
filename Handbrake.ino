@@ -11,6 +11,10 @@
 
 /************************************* INCLUDES *************************************/
 
+#include <EEPROMex.h>
+#include <EEPROMVar.h>
+
+#include "utilities.h"
 #include "RGBTools.h"
 
 /************************************** MACROS **************************************/
@@ -18,6 +22,8 @@
 
 // Turns Debug on and off
 #define HANDBRAKE_DEBUG                   1
+
+//#define HANDBRAKE_DEBUG_VERBOSE           1
 
 /// @brief Definition of the revision number for checking to see if EEPROM data is compatable
 #define REVISION_NUM                      1
@@ -69,7 +75,7 @@ typedef struct
 static void handbrakeInitialConditions(void);
 static void handbrakeProcessSerial(void);
 static void handbrakePrintConfigMenu(void);
-static void handbrakeServiceConfigButton(void);
+static void handbrakeServiceModeButton(void);
 static uint32_t handbrakeGetModeIdx(void);
 
 /************************************* GLOBALS **************************************/
@@ -135,10 +141,11 @@ static uint32_t g_bound_key = KEYPAD_8;
 static uint8_t g_serial_buff[HANDBRAKE_SERIAL_BUFF_SIZE];
 
 // initialize a common cathode LED
-RGBTools rgb(3,4,5);
+RGBTools rgb(RGB_R_PIN,RGB_G_PIN,RGB_B_PIN);
 
 static eepromData_t g_saved_data = 
 {
+  .rev_number = 0U,
   .cal_max = 0U,
   .cal_min = 0U,
   .mode = 0U,
@@ -208,7 +215,10 @@ void setup(void) {
  */
 void loop(void) {
 
-  if (g_current_mode != HANDBRAKE_CONFIG_MODE)
+  // Normal operating modes
+  if ((g_current_mode == HANDBRAKE_KEYBOARD_MODE) ||
+      (g_current_mode == HANDBRAKE_ANALOG_MODE) ||
+      (g_current_mode == HANDBRAKE_BUTTON_MODE))
   {
     // Read hall sensor
     uint16_t data = analogRead(hall_analog_pin);
@@ -223,7 +233,7 @@ void loop(void) {
       position = (data - g_saved_data.cal_min) / divisior;
     }
 
-    #ifdef HANDBRAKE_DEBUG
+    #ifdef HANDBRAKE_DEBUG_VERBOSE
     Serial.print("data: ");
     Serial.print(data);
     Serial.print(" | position: ");
@@ -276,22 +286,29 @@ void loop(void) {
       }
     }
   }
-  else
+  else if(g_current_mode == HANDBRAKE_CONFIG_MODE)
   {
     // Do Configuration
+    // Process serial commands
+    if (Serial.available() > 0)
+    {
+      handbrakeProcessSerial();
+    }
   }
-
-  // Process serial commands
-  if (Serial.available() > 0)
+  else if(g_current_mode == HANDBRAKE_CALIBRATE_MODE)
   {
-    handbrakeProcessSerial();
+    // Do calibration
+  }
+  else
+  {
+    error();
   }
 
   // Service the LED
   rgb.serviceLED();
 
   // Service the config button
-  handbrakeServiceConfigButton();
+  handbrakeServiceModeButton();
 
   // a brief delay, so this runs "only" 200 times per second
   delay(5);
@@ -351,7 +368,7 @@ static void handbrakePrintConfigMenu(void)
  * @brief Handles the button presses. Cycles modes when pressed and released, enters cal mode
  * when button is held down for a time greater than the specified threshold.
  */
-static void handbrakeServiceConfigButton(void)
+static void handbrakeServiceModeButton(void)
 {
   static bool button_prev_state = false;
 
