@@ -12,10 +12,6 @@ void error(void)
 {
     // initialize a common cathode LED
     RGBTools rgb(RGB_R_PIN,RGB_G_PIN,RGB_B_PIN);
-
-    #ifdef HANDBRAKE_DEBUG
-    Serial.print("Mode changed to: UNKNOWN");
-    #endif
     rgb.setColor(Color::RED);
     rgb.blinkEnable(250U, 50U);
 
@@ -26,4 +22,17 @@ void error(void)
         delay(5);
     }
 
+}
+
+// handle diagnostic informations given by assertion and abort program execution:
+void __assert(const char *__func, const char *__file, int __lineno, const char *__sexp) {
+    // transmit diagnostic informations through serial link. 
+    Serial.println(__func);
+    Serial.println(__file);
+    Serial.println(__lineno, DEC);
+    Serial.println(__sexp);
+    Serial.flush();
+    
+    // abort program execution
+    error();
 }
