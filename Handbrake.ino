@@ -482,11 +482,17 @@ static void handbrakeInitialConditions(void)
 {
   Joystick.X(JOYSTICK_RESTING_POS);
   Joystick.Y(JOYSTICK_RESTING_POS);
-  Joystick.Z(JOYSTICK_RESTING_POS);
   Joystick.Zrotate(JOYSTICK_RESTING_POS);
   Joystick.sliderLeft(JOYSTICK_RESTING_POS);
   Joystick.sliderRight(JOYSTICK_RESTING_POS);
   Joystick.hat(-1);
+
+  // Reset axis, button and keyboard being used
+  Joystick.Z(0U);
+  Joystick.button(HANDBRAKE_JOY_BUTTON, false);
+  Keyboard.set_key1(0);
+
+  Joystick.send_now();
 }
 
 
