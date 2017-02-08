@@ -298,17 +298,78 @@ void loop(void) {
   else if(g_current_mode == HANDBRAKE_CALIBRATE_MODE)
   {
     // Do calibration
+    // Find limits for calibration
+    g_cal_data_min = min(data, g_cal_data_min);
+    g_cal_data_max = max(data, g_cal_data_max);
+
   }
   else
   {
+    #ifdef HANDBRAKE_DEBUG
+    Serial.print("Mode changed to: UNKNOWN");
+    #endif
     error();
+  }
+
+  // Service the config button and mode changes
+  handbrakeServiceModeButton();
+
+  // Process events from mode changes
+  if(g_previous_mode != g_current_mode)
+  {
+    // Print out the mode change info
+    #ifdef HANDBRAKE_DEBUG
+    assert((g_previous_mode < HANDBRAKE_NUM_MODES) && (g_current_mode < HANDBRAKE_NUM_MODES));
+    Serial.print("Mode changed: ");
+    Serial.print(k_mode_names[g_previous_mode]);
+    Serial.print(" -> ");
+    Serial.println(k_mode_names[g_current_mode]);
+    #endif
+
+    // Handle events for entering modes
+    if(g_current_mode == HANDBRAKE_CONFIG_MODE)
+    {
+      handbrakePrintConfigMenu();
+    }
+    else if(g_current_mode == HANDBRAKE_CALIBRATE_MODE)
+    {
+      // Change LED for Calibrate mode special case
+      rgb.setColor(Color::WHITE);
+      rgb.blinkEnable(500, 50);
+
+      // Reset min and max
+      g_cal_data_min = UINT16_MAX;
+      g_cal_data_max = 0U;
+    }
+    else
+    {
+      // Do nothing...
+    }
+    
+    // Handle events for leaving modes
+    if(g_previous_mode == HANDBRAKE_CALIBRATE_MODE)
+    {
+      // Calibration mode has been exited, store new calibration values
+      g_saved_data.cal_max = g_cal_data_max;
+      g_saved_data.cal_min = g_cal_data_min;
+
+      #ifdef HANDBRAKE_DEBUG
+      Serial.print("New Calibration (min,max): ");
+      Serial.print(g_cal_data_min);
+      Serial.print(",");
+      Serial.println(g_cal_data_max);
+      #endif
+    }
+
+    // Reset controller on mode change
+    handbrakeInitialConditions();
   }
 
   // Service the LED
   rgb.serviceLED();
 
-  // Service the config button
-  handbrakeServiceModeButton();
+  // Set previous mode to current mode
+  g_previous_mode = g_current_mode;
 
   // a brief delay, so this runs "only" 200 times per second
   delay(5);
@@ -382,8 +443,6 @@ static void handbrakeServiceModeButton(void)
     {
       // Change mode to Calibrate Mode
       g_current_mode = HANDBRAKE_CALIBRATE_MODE;
-      rgb.setColor(Color::WHITE);
-      rgb.blinkEnable(500, 50);
 
       // Set button held, to not change modes below
       button_held = true;
@@ -412,11 +471,6 @@ static void handbrakeServiceModeButton(void)
     g_current_mode = modes[mode_idx].config_mode;
     rgb.setColor(modes[mode_idx].led_color);
     rgb.blinkEnable(modes[mode_idx].blink_interval, modes[mode_idx].duty_cycle);
-
-    #ifdef HANDBRAKE_DEBUG
-    Serial.print("Mode changed to: ");
-    Serial.println(g_current_mode);
-    #endif
   }
 
   // Store current button state
