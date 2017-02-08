@@ -11,6 +11,9 @@
 
 /************************************* INCLUDES *************************************/
 
+#include <stdint.h>
+
+
 #include <EEPROMex.h>
 #include <EEPROMVar.h>
 
@@ -34,23 +37,42 @@
 
 #define HANDBRAKE_JOY_AXIS_MAX            1023U
 
+#define HANDBRAKE_JOY_BUTTON              1U
+
 #define HANDBRAKE_BUTTON_HOLD_TIME_MS     5000U
 
 // Serial Config Parsing Timeout
 #define HANDBRAKE_SERIAL_TIMEOUT          5000
 
-// Resting position
+// Resting value for joystick position
 #define JOYSTICK_RESTING_POS              512U
+
+#define HANDBRAKE_POSITION_MAX            100.0F
+#define HANDBRAKE_POSITION_MIN            0.0F
 
 #define HANDBRAKE_MODE_SELECT_BUTTON      12
 
+#define HANDBRAKE_UNKNOWN_MODE            0x00
 #define HANDBRAKE_KEYBOARD_MODE           0x01
 #define HANDBRAKE_BUTTON_MODE             0x02
-#define HANDBRAKE_ANALOG_MODE             0x04
-#define HANDBRAKE_CALIBRATE_MODE          0x08
-#define HANDBRAKE_CONFIG_MODE             0x10
+#define HANDBRAKE_ANALOG_MODE             0x03
+#define HANDBRAKE_CALIBRATE_MODE          0x04
+#define HANDBRAKE_CONFIG_MODE             0x05
+
+#define HANDBRAKE_NUM_MODES               0x06
+
 
 /*********************************** DEFINITIONS ************************************/
+
+const char* k_mode_names[HANDBRAKE_NUM_MODES] = 
+{
+  "UNKNOWN", //< Mode 0 is undefined
+  "KEYBOARD",
+  "BUTTON",
+  "ANALOG",
+  "CALIBRATION",
+  "CONFIG"
+};
 
 typedef struct
 {
@@ -80,7 +102,7 @@ static uint32_t handbrakeGetModeIdx(void);
 
 /************************************* GLOBALS **************************************/
 
-// Array of config modes
+// Array of modes which can be cycled through by momentary press on the button
 static configMode_t modes[] = 
 {
   {HANDBRAKE_KEYBOARD_MODE, Color::GREEN,     0,  0}, 
@@ -131,14 +153,19 @@ const uint16_t g_key_codes[] =
 /// The current moode, defaults to undefined
 static uint8_t g_current_mode = 0U;
 
+static uint8_t g_previous_mode = 0U;
+
 /// The button press threshold
-static uint16_t g_button_thresh = 1337U;
+static float g_button_thresh = 50.0F;
 
 // The key bound to the threshold crossing
 static uint32_t g_bound_key = KEYPAD_8;
 
 // Serial buffer, for processing serial data
 static uint8_t g_serial_buff[HANDBRAKE_SERIAL_BUFF_SIZE];
+
+static uint16_t g_cal_data_min = UINT16_MAX;
+static uint16_t g_cal_data_max = 0U;
 
 // initialize a common cathode LED
 RGBTools rgb(RGB_R_PIN,RGB_G_PIN,RGB_B_PIN);
@@ -194,7 +221,7 @@ void setup(void) {
 
   #ifdef HANDBRAKE_DEBUG
   delay(1000);
-  Serial.println("Handbrake Initialized.");
+  Serial.println("\fHandbrake Initialized.");
   #endif
 
   // @todo: Load EEPROM data into global structure 
@@ -215,32 +242,30 @@ void setup(void) {
  */
 void loop(void) {
 
+  // Always Read hall sensor
+  uint16_t data = analogRead(hall_analog_pin);
+
   // Normal operating modes
   if ((g_current_mode == HANDBRAKE_KEYBOARD_MODE) ||
       (g_current_mode == HANDBRAKE_ANALOG_MODE) ||
       (g_current_mode == HANDBRAKE_BUTTON_MODE))
   {
-    // Read hall sensor
-    uint16_t data = analogRead(hall_analog_pin);
-
     //Apply calibration transform to the data
     float divisior = (g_saved_data.cal_max -  g_saved_data.cal_min);
     float position = 0.0;
 
+    // Calculate position (0.0F - 100.0F)
     // Avoid div by 0
     if(divisior > 0.0)
     {
-      position = (data - g_saved_data.cal_min) / divisior;
+      // limit data from going below the calibrated min value
+      data = max(data, g_saved_data.cal_min);
+      
+      // Calculate position
+      position = ((data - g_saved_data.cal_min) / divisior) * 100.0F;
     }
 
-    #ifdef HANDBRAKE_DEBUG_VERBOSE
-    Serial.print("data: ");
-    Serial.print(data);
-    Serial.print(" | position: ");
-    Serial.println(position);
-    #endif
-
-    // Saturate data
+    // Limit position 
     if(position < 0.0)
     {
       position = 0.0;
@@ -254,10 +279,18 @@ void loop(void) {
       // Don't modify the value
     }
 
+    // Report calculated position
+    #ifdef HANDBRAKE_DEBUG_VERBOSE
+    Serial.print("data: ");
+    Serial.print(data);
+    Serial.print(" | position: ");
+    Serial.println(position);
+    #endif
+
     if (g_current_mode == HANDBRAKE_ANALOG_MODE)
     {
       // set the Z axis position to data
-      Joystick.Z(position * HANDBRAKE_JOY_AXIS_MAX);
+      Joystick.Z((position / 100.0F) * HANDBRAKE_JOY_AXIS_MAX);
       Joystick.send_now();
     }
     else if (g_current_mode == HANDBRAKE_BUTTON_MODE)
@@ -265,11 +298,11 @@ void loop(void) {
       // @todo: Add hysteresis to button press of 2-5%?
       if (position >= g_button_thresh)
       {
-        Joystick.button(1, true);
+        Joystick.button(HANDBRAKE_JOY_BUTTON, true);
       }
       else
       {
-        Joystick.button(1, false);
+        Joystick.button(HANDBRAKE_JOY_BUTTON, false);
       }
       Joystick.send_now();
     }
