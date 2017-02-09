@@ -29,7 +29,9 @@
 //#define HANDBRAKE_DEBUG_VERBOSE           1
 
 /// @brief Definition of the revision number for checking to see if EEPROM data is compatable
-#define REVISION_NUM                      1
+#define REVISION_NUM                      100
+
+#define HANDBRAKE_EEPROM_ADDR             0U
 
 #define HANDBRAKE_SERIAL_BUFF_SIZE        64U
 
@@ -84,12 +86,12 @@ typedef struct
 
 typedef struct
 {
-  uint32_t  rev_number;      //< Revision number of the eeprom data struct
+  uint32_t rev_number;       //< Revision number of the eeprom data struct
   uint32_t cal_max;          //< Raw ADC value that represents 100%
   uint32_t cal_min;          //< Raw ADC value that represents 0%
-  uint32_t mode;             //< Current mode the device is in
   uint32_t button_threshold; //< Threshold (0%-100%) where the button is activated/deactivated
   uint16_t conf_key_code;    //< Configured key for the Keyboard Mode
+  uint8_t  mode;             //< Current mode the device is in
 } eepromData_t;
 
 /******************************* FUNCTION DEFINITIONS *******************************/
@@ -98,6 +100,9 @@ static void handbrakeInitialConditions(void);
 static void handbrakeProcessSerial(void);
 static void handbrakeServiceModeButton(void);
 static uint32_t handbrakeGetModeIdx(void);
+static void handbrakeUpdateSettings(eepromData_t *p_data);
+static void handbrakeLoadSettings(eepromData_t *p_data);
+static bool handbrakeValidateSettings(const eepromData_t *p_data);
 
 /************************************* GLOBALS **************************************/
 
@@ -174,9 +179,9 @@ static eepromData_t g_saved_data =
   .rev_number = 0U,
   .cal_max = 0U,
   .cal_min = 0U,
-  .mode = 0U,
   .button_threshold = 0U,
   .conf_key_code = 0U,
+  .mode = 0U,
 };
 
 // ********** INPUT CONFIG ************/
@@ -497,6 +502,55 @@ static void handbrakeServiceModeButton(void)
   button_prev_state = button_curr_state;
 }
 
+/**
+ * @brief Writes the delta of the settings to EEPROM
+ * @param p_data Pointer to the struct holding the data to be written to EEPROM
+ */
+static void handbrakeUpdateSettings(eepromData_t *p_data)
+{
+  // Populate the Rev Number before saving
+  p_data->rev_number = REVISION_NUM;
+
+  // Now save the data
+  uint32_t num_bytes = EEPROM.updateBlock(HANDBRAKE_EEPROM_ADDR, *p_data);
+
+  #ifdef HANDBRAKE_DEBUG
+  Serial.print("Save Settings: Bytes: ");
+  Serial.println(num_bytes);
+  #endif
+}
+
+/**
+ * @brief Reads the settings from the EEPROM
+ * @param p_data Pointer to the struct which will have EEPROM data written to it
+ */
+static void handbrakeLoadSettings(eepromData_t *p_data)
+{
+  uint32_t num_bytes = EEPROM.readBlock(HANDBRAKE_EEPROM_ADDR, *p_data);
+  assert(num_bytes == sizeof(*p_data));
+
+  #ifdef HANDBRAKE_DEBUG
+  Serial.print("Load Settings: Bytes: ");
+  Serial.println(num_bytes);
+  #endif
+}
+
+/**
+ * @brief Validates the settings stored in the EEPROM
+ * @param p_data Pointer to the struct holding the data recently read from EEPROM
+ * @return Data is valid (true) or invalid (false)
+ */
+static bool handbrakeValidateSettings(const eepromData_t *p_data)
+{
+  bool result = (p_data->rev_number == REVISION_NUM);
+  
+  #ifdef HANDBRAKE_DEBUG
+  Serial.print("Validate Settings: ");
+  Serial.println((result ? "VALID" : "INVALID"));
+  #endif
+
+  return result;
+}
 
 static void handbrakeInitialConditions(void)
 {
