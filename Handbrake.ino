@@ -96,7 +96,6 @@ typedef struct
 
 static void handbrakeInitialConditions(void);
 static void handbrakeProcessSerial(void);
-static void handbrakePrintConfigMenu(void);
 static void handbrakeServiceModeButton(void);
 static uint32_t handbrakeGetModeIdx(void);
 
@@ -362,7 +361,7 @@ void loop(void) {
     // Handle events for entering modes
     if(g_current_mode == HANDBRAKE_CONFIG_MODE)
     {
-      handbrakePrintConfigMenu();
+      printConfigMenu();
     }
     else if(g_current_mode == HANDBRAKE_CALIBRATE_MODE)
     {
@@ -442,20 +441,8 @@ static void handbrakeProcessSerial(void)
   }
   else
   {
-    handbrakePrintConfigMenu();
+    printConfigMenu();
   }
-}
-
-/**
- * @brief A function simply to display the configuration menu via the serial terminal
- */
-static void handbrakePrintConfigMenu(void)
-{
-  Serial.println("\f       Handbrake Config      ");
-  Serial.println("=============================");
-  Serial.println(" K - Set Key Binding         ");
-  Serial.println(" B - Set Button Threshold    ");
-  Serial.println(" S - Set Analog Value (Test) ");
 }
 
 /**

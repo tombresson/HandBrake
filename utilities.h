@@ -12,5 +12,6 @@
 
 /*********************************** DEFINITIONS  ************************************/
 
+void printConfigMenu(void);
 void __assert(const char *__func, const char *__file, int __lineno, const char *__sexp);
 void error(void);

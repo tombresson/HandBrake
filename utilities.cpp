@@ -7,6 +7,19 @@
 /************************************** MACROS **************************************/
 
 /*********************************** DEFINITIONS ************************************/
+
+/**
+ * @brief A function simply to display the configuration menu via the serial terminal
+ */
+void printConfigMenu(void)
+{
+  Serial.println("\f       Handbrake Config      ");
+  Serial.println("=============================");
+  Serial.println(" K - Set Key Binding         ");
+  Serial.println(" B - Set Button Threshold    ");
+  Serial.println(" S - Set Analog Value (Test) ");
+}
+
 ///@brief Error handler
 void error(void)
 {
