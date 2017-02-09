@@ -153,11 +153,8 @@ const uint16_t g_key_codes[] =
   KEYPAD_0, KEYPAD_PERIOD
 };
 
-
-/// The current moode, defaults to undefined
-static uint8_t g_current_mode = 0U;
-
-static uint8_t g_previous_mode = 0U;
+// Holds the last selected mode
+static uint8_t g_last_mode = 0U;
 
 /// The button press threshold
 static float g_button_thresh = 50.0F;
@@ -224,16 +221,28 @@ void setup(void) {
 
 
   #ifdef HANDBRAKE_DEBUG
-  delay(1000);
-  Serial.println("\fHandbrake Initialized.");
+  delay(2500);
+  Serial.println("\f*** USB Handbrake Initialized! ***");
   #endif
 
   // @todo: Load EEPROM data into global structure 
+  handbrakeLoadSettings(&g_saved_data);
+  bool settings_result = handbrakeValidateSettings(&g_saved_data);
 
   // If mode is undefined, load analog mode
-  if (g_current_mode == 0U)
+  if ((g_saved_data.mode == 0U) || 
+      (g_saved_data.mode > (HANDBRAKE_NUM_MODES - 1U)))
   {
-    g_current_mode = HANDBRAKE_ANALOG_MODE;
+    g_saved_data.mode = HANDBRAKE_ANALOG_MODE;
+  }
+
+  // Update last mode to the current mode 
+  g_last_mode = g_saved_data.mode;
+
+  // if eeprom doesn't contain valid data, write it now
+  if(!settings_result)
+  {
+    handbrakeUpdateSettings(&g_saved_data);
   }
 
   // Set the LED color for the current mode
@@ -246,37 +255,40 @@ void setup(void) {
  */
 void loop(void) {
 
+  // Holds the mode for the last loop cycle
+  static uint8_t previous_mode = 0U;
+
   // Always Read hall sensor
   uint16_t data = analogRead(hall_analog_pin);
 
   // Normal operating modes
-  if ((g_current_mode == HANDBRAKE_KEYBOARD_MODE) ||
-      (g_current_mode == HANDBRAKE_ANALOG_MODE) ||
-      (g_current_mode == HANDBRAKE_BUTTON_MODE))
+  if ((g_saved_data.mode == HANDBRAKE_KEYBOARD_MODE) ||
+      (g_saved_data.mode == HANDBRAKE_ANALOG_MODE) ||
+      (g_saved_data.mode == HANDBRAKE_BUTTON_MODE))
   {
     //Apply calibration transform to the data
     float divisior = (g_saved_data.cal_max -  g_saved_data.cal_min);
-    float position = 0.0;
+    float position = HANDBRAKE_POSITION_MIN;
 
     // Calculate position (0.0F - 100.0F)
     // Avoid div by 0
-    if(divisior > 0.0)
+    if(divisior > HANDBRAKE_POSITION_MIN)
     {
       // limit data from going below the calibrated min value
       data = max(data, g_saved_data.cal_min);
       
       // Calculate position
-      position = ((data - g_saved_data.cal_min) / divisior) * 100.0F;
+      position = ((float)(data - g_saved_data.cal_min) / divisior) * HANDBRAKE_POSITION_MAX;
     }
 
     // Limit position 
-    if(position < 0.0)
+    if(position < HANDBRAKE_POSITION_MIN)
     {
-      position = 0.0;
+      position = HANDBRAKE_POSITION_MIN;
     }
-    else if (position > 100.0)
+    else if (position > HANDBRAKE_POSITION_MAX)
     {
-      position = 100.0;
+      position = HANDBRAKE_POSITION_MAX;
     }
     else
     {
@@ -291,13 +303,13 @@ void loop(void) {
     Serial.println(position);
     #endif
 
-    if (g_current_mode == HANDBRAKE_ANALOG_MODE)
+    if (g_saved_data.mode == HANDBRAKE_ANALOG_MODE)
     {
       // set the Z axis position to data
-      Joystick.Z((position / 100.0F) * HANDBRAKE_JOY_AXIS_MAX);
+      Joystick.Z((position / HANDBRAKE_POSITION_MAX) * HANDBRAKE_JOY_AXIS_MAX);
       Joystick.send_now();
     }
-    else if (g_current_mode == HANDBRAKE_BUTTON_MODE)
+    else if (g_saved_data.mode == HANDBRAKE_BUTTON_MODE)
     {
       // @todo: Add hysteresis to button press of 2-5%?
       if (position >= g_button_thresh)
@@ -310,7 +322,7 @@ void loop(void) {
       }
       Joystick.send_now();
     }
-    else if (g_current_mode == HANDBRAKE_KEYBOARD_MODE)
+    else if (g_saved_data.mode == HANDBRAKE_KEYBOARD_MODE)
     {
       // @todo: Add hysteresis to key press of 2-5%?
       if (position >= g_button_thresh)
@@ -323,7 +335,7 @@ void loop(void) {
       }
     }
   }
-  else if(g_current_mode == HANDBRAKE_CONFIG_MODE)
+  else if(g_saved_data.mode == HANDBRAKE_CONFIG_MODE)
   {
     // Do Configuration
     // Process serial commands
@@ -332,7 +344,7 @@ void loop(void) {
       handbrakeProcessSerial();
     }
   }
-  else if(g_current_mode == HANDBRAKE_CALIBRATE_MODE)
+  else if(g_saved_data.mode == HANDBRAKE_CALIBRATE_MODE)
   {
     // Do calibration
     // Find limits for calibration
@@ -343,32 +355,46 @@ void loop(void) {
   else
   {
     #ifdef HANDBRAKE_DEBUG
-    Serial.print("Mode changed to: UNKNOWN");
+    Serial.println("Mode changed to: UNKNOWN");
     #endif
-    error();
+    assert(false);
   }
 
   // Service the config button and mode changes
   handbrakeServiceModeButton();
 
-  // Process events from mode changes
-  if(g_previous_mode != g_current_mode)
+  // Process event
+    // Holds the mode for the last loop cycles from mode changes
+  if(previous_mode != g_saved_data.mode)
   {
+    // Store the previously selected mode into last mode, so we can return if needed
+    g_last_mode = previous_mode;
+
     // Print out the mode change info
     #ifdef HANDBRAKE_DEBUG
-    assert((g_previous_mode < HANDBRAKE_NUM_MODES) && (g_current_mode < HANDBRAKE_NUM_MODES));
+      // Holds the mode for the last loop cycleG
+    assert((previous_mode < HANDBRAKE_NUM_MODES) && (g_saved_data.mode < HANDBRAKE_NUM_MODES));
     Serial.print("Mode changed: ");
-    Serial.print(k_mode_names[g_previous_mode]);
+      // Holds the mode for the last loop cycle
+    Serial.print(k_mode_names[previous_mode]);
     Serial.print(" -> ");
-    Serial.println(k_mode_names[g_current_mode]);
+    Serial.println(k_mode_names[g_saved_data.mode]);
     #endif
 
-    // Handle events for entering modes
-    if(g_current_mode == HANDBRAKE_CONFIG_MODE)
+    // If current mode is normal operating mode, save to eeprom
+    if((g_saved_data.mode == HANDBRAKE_KEYBOARD_MODE) ||
+       (g_saved_data.mode == HANDBRAKE_BUTTON_MODE)   ||
+       (g_saved_data.mode == HANDBRAKE_ANALOG_MODE))
+       {
+        handbrakeUpdateSettings(&g_saved_data);
+       }
+
+    // HANDLE EVENTS FOR ENTERING MODE
+    if(g_saved_data.mode == HANDBRAKE_CONFIG_MODE)
     {
       printConfigMenu();
     }
-    else if(g_current_mode == HANDBRAKE_CALIBRATE_MODE)
+    else if(g_saved_data.mode == HANDBRAKE_CALIBRATE_MODE)
     {
       // Change LED for Calibrate mode special case
       rgb.setColor(Color::WHITE);
@@ -383,8 +409,9 @@ void loop(void) {
       // Do nothing...
     }
     
-    // Handle events for leaving modes
-    if(g_previous_mode == HANDBRAKE_CALIBRATE_MODE)
+    // HANDLE EVENT FOR LEAVING MODE
+    // Holds the mode for the last loop cycle
+    if(previous_mode == HANDBRAKE_CALIBRATE_MODE)
     {
       // Calibration mode has been exited, store new calibration values
       g_saved_data.cal_max = g_cal_data_max;
@@ -396,6 +423,9 @@ void loop(void) {
       Serial.print(",");
       Serial.println(g_cal_data_max);
       #endif
+
+      // Save the data to eeprom
+      handbrakeUpdateSettings(&g_saved_data);
     }
 
     // Reset controller on mode change
@@ -405,8 +435,9 @@ void loop(void) {
   // Service the LED
   rgb.serviceLED();
 
-  // Set previous mode to current mode
-  g_previous_mode = g_current_mode;
+  // Set previo
+    // Holds the mode for the last loop cycleus mode to current mode
+  previous_mode = g_saved_data.mode;
 
   // a brief delay, so this runs "only" 200 times per second
   delay(5);
@@ -467,7 +498,7 @@ static void handbrakeServiceModeButton(void)
     if((millis() - hold_time_start) > HANDBRAKE_BUTTON_HOLD_TIME_MS)
     {
       // Change mode to Calibrate Mode
-      g_current_mode = HANDBRAKE_CALIBRATE_MODE;
+      g_saved_data.mode = HANDBRAKE_CALIBRATE_MODE;
 
       // Set button held, to not change modes below
       button_held = true;
@@ -486,14 +517,17 @@ static void handbrakeServiceModeButton(void)
     // Find index of current mode
     uint32_t mode_idx = handbrakeGetModeIdx();
 
-    // Advance the mode idx to the next valid mode
-    if(++mode_idx >= COUNT_OF(modes))
+    // Advance the mode idx to the next valid mode, 
+    // if current mode is not calibration
+    if(g_saved_data.mode != HANDBRAKE_CALIBRATE_MODE)
     {
-        mode_idx = 0U;
+      if(++mode_idx >= COUNT_OF(modes))
+      {
+          mode_idx = 0U;
+      }
     }
-
     // Set the current mode and the LED
-    g_current_mode = modes[mode_idx].config_mode;
+    g_saved_data.mode = modes[mode_idx].config_mode;
     rgb.setColor(modes[mode_idx].led_color);
     rgb.blinkEnable(modes[mode_idx].blink_interval, modes[mode_idx].duty_cycle);
   }
@@ -572,9 +606,15 @@ static void handbrakeInitialConditions(void)
 
 static uint32_t handbrakeGetModeIdx(void)
 {
+    // Determine mode to find index of
+    // If calibration is the active mode, find the index of the previous mode
+    uint32_t mode =
+      // Holds the mode for the last loop cycle
+     (g_saved_data.mode == HANDBRAKE_CALIBRATE_MODE) ? g_last_mode : g_saved_data.mode; 
+
     // Find index of current mode
     uint32_t idx = 0U;
-    while ( (idx < COUNT_OF(modes)) && (modes[idx].config_mode != g_current_mode))
+    while ( (idx < COUNT_OF(modes)) && (modes[idx].config_mode != mode))
     { 
         ++idx; 
     }
