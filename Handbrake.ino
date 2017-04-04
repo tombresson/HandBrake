@@ -26,21 +26,23 @@
 // Turns Debug on and off
 #define HANDBRAKE_DEBUG                   1
 
-//#define HANDBRAKE_DEBUG_VERBOSE           1
+// Turn on verbose debugging 
+#define HANDBRAKE_DEBUG_VERBOSE           1
 
-/// @brief Definition of the revision number for checking to see if EEPROM data is compatable
-#define REVISION_NUM                      100
-
+// EEPROM abstracted address position
 #define HANDBRAKE_EEPROM_ADDR             0U
 
+// Buffer for serial data
 #define HANDBRAKE_SERIAL_BUFF_SIZE        64U
 
 #define HANDBRAKE_ADC_MAX                 1023U
 
 #define HANDBRAKE_JOY_AXIS_MAX            1023U
 
+// Button to send for the joystick button threshold
 #define HANDBRAKE_JOY_BUTTON              1U
 
+// Duration of button hold to enter calibration mode
 #define HANDBRAKE_BUTTON_HOLD_TIME_MS     5000U
 
 // Serial Config Parsing Timeout
@@ -52,8 +54,10 @@
 #define HANDBRAKE_POSITION_MAX            100.0F
 #define HANDBRAKE_POSITION_MIN            0.0F
 
+// GPIO pin for the mode select button
 #define HANDBRAKE_MODE_SELECT_BUTTON      12
 
+// Handbrake Modes
 #define HANDBRAKE_UNKNOWN_MODE            0x00
 #define HANDBRAKE_KEYBOARD_MODE           0x01
 #define HANDBRAKE_BUTTON_MODE             0x02
@@ -83,6 +87,10 @@ typedef struct
   uint32_t blink_interval;
   uint8_t  duty_cycle;
 }configMode_t;
+
+/// @brief Definition of the revision number for checking to see if EEPROM data is compatable
+/// Anytime the EEPROM data structure is changed, this needs to be updated
+#define REVISION_NUM                      100
 
 typedef struct
 {
@@ -225,7 +233,7 @@ void setup(void) {
   Serial.println("\f*** USB Handbrake Initialized! ***");
   #endif
 
-  // @todo: Load EEPROM data into global structure 
+  // Load EEPROM data into global structure 
   handbrakeLoadSettings(&g_saved_data);
   bool settings_result = handbrakeValidateSettings(&g_saved_data);
 
@@ -311,7 +319,7 @@ void loop(void) {
     }
     else if (g_saved_data.mode == HANDBRAKE_BUTTON_MODE)
     {
-      // @todo: Add hysteresis to button press of 2-5%?
+      // Set the button if above the threshold
       if (position >= g_button_thresh)
       {
         Joystick.button(HANDBRAKE_JOY_BUTTON, true);
@@ -324,7 +332,7 @@ void loop(void) {
     }
     else if (g_saved_data.mode == HANDBRAKE_KEYBOARD_MODE)
     {
-      // @todo: Add hysteresis to key press of 2-5%?
+      // Set keypress if above the threshold
       if (position >= g_button_thresh)
       {
         Keyboard.set_key1(g_bound_key);
@@ -363,8 +371,8 @@ void loop(void) {
   // Service the config button and mode changes
   handbrakeServiceModeButton();
 
-  // Process event
-    // Holds the mode for the last loop cycles from mode changes
+  // Process events upon state changes
+  // Holds the mode for the last loop cycles from mode changes
   if(previous_mode != g_saved_data.mode)
   {
     // Store the previously selected mode into last mode, so we can return if needed
@@ -435,8 +443,8 @@ void loop(void) {
   // Service the LED
   rgb.serviceLED();
 
-  // Set previo
-    // Holds the mode for the last loop cycleus mode to current mode
+  // Set previous mode 
+  // Holds the mode for the last loop cycleus mode to current mode
   previous_mode = g_saved_data.mode;
 
   // a brief delay, so this runs "only" 200 times per second
