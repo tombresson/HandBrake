@@ -286,10 +286,11 @@ void loop(void) {
     if(divisior > HANDBRAKE_POSITION_MIN)
     {
       // limit data from going below the calibrated min value
-      data = max(data, g_saved_data.cal_min);
+      // but don't modify the incoming data
+      uint16_t adjusted_data = max(data, g_saved_data.cal_min);
       
       // Calculate position
-      position = ((float)(data - g_saved_data.cal_min) / divisior) * HANDBRAKE_POSITION_MAX;
+      position = ((float)(adjusted_data - g_saved_data.cal_min) / divisior) * HANDBRAKE_POSITION_MAX;
     }
 
     // Limit position 
