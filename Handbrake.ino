@@ -54,6 +54,9 @@
 #define HANDBRAKE_POSITION_MAX            100.0F
 #define HANDBRAKE_POSITION_MIN            0.0F
 
+// The hysteresis (in percentage) that in used for the button/key press
+#define HANDBRAKE_THRESH_HYSTERESIS       5
+
 // GPIO pin for the mode select button
 #define HANDBRAKE_MODE_SELECT_BUTTON      12
 
@@ -324,9 +327,15 @@ void loop(void) {
       {
         Joystick.button(HANDBRAKE_JOY_BUTTON, true);
       }
-      else
+      // Release the button if below the threshold with the hysteresis or if
+      // position happens to become 0
+      else if((position < (g_button_thresh - HANDBRAKE_THRESH_HYSTERESIS)) || (position == 0.0f))
       {
         Joystick.button(HANDBRAKE_JOY_BUTTON, false);
+      }
+      else
+      {
+        // Do nothing
       }
       Joystick.send_now();
     }
@@ -337,9 +346,15 @@ void loop(void) {
       {
         Keyboard.set_key1(g_bound_key);
       }
-      else
+      // Release the button if below the threshold with the hysteresis or if
+      // position happens to become 0
+      else if((position < (g_button_thresh - HANDBRAKE_THRESH_HYSTERESIS)) || (position == 0.0f))
       {
         Keyboard.set_key1(0);
+      }
+      else
+      {
+        // Do nothing
       }
     }
   }
