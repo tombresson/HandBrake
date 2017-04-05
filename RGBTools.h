@@ -25,8 +25,10 @@ class RGBTools
 	public:
 		RGBTools(uint8_t r, uint8_t g, uint8_t b);
 		RGBTools(uint8_t r, uint8_t g, uint8_t b, Mode mode);
-		void setColor(uint8_t r, uint8_t g, uint8_t b);
-		void setColor(uint32_t);
+    void setColor(uint8_t r, uint8_t g, uint8_t b);
+		void setColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness);
+    void setColor(uint32_t color);
+		void setColor(uint32_t color, uint8_t brightness);
 		void fadeTo(uint8_t r, uint8_t g, uint8_t b, int steps, int duration);
     void blinkEnable(uint32_t rate, uint8_t duty_cycle);
     void blinkDisable(void);

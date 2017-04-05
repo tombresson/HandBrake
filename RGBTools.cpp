@@ -51,7 +51,25 @@ RGBTools::RGBTools(uint8_t r, uint8_t g, uint8_t b, Mode mode) {
    @param[in] g The green value ([0-255])
    @param[in] b The blue value ([0-255])
 */
-void RGBTools::setColor(uint8_t r, uint8_t g, uint8_t b) {
+void RGBTools::setColor(uint8_t r, uint8_t g, uint8_t b)
+{
+  setColor(r,g,b,255);  
+}
+
+/**
+   Set LED-color to custom color instantly
+
+   @param[in] r The red value ([0-255])
+   @param[in] g The green value ([0-255])
+   @param[in] b The blue value ([0-255])
+   @param[in] brightness The overall brightness ([0-255])
+*/
+void RGBTools::setColor(uint8_t r, uint8_t g, uint8_t b,  uint8_t brightness) {
+
+  // Apply the brightness modifier
+  r = ((255 - brightness) > r) ? 0U : (r - (255 - brightness));
+  b = ((255 - brightness) > b) ? 0U : (b - (255 - brightness));
+  g = ((255 - brightness) > g) ? 0U : (g - (255 - brightness));
 
   // set color of LED
   if (mode == COMMON_CATHODE)
@@ -85,7 +103,20 @@ void RGBTools::setColor(uint32_t color) {
   uint8_t red =   (uint8_t)   ((color & 0xFF0000) >> 16);
   uint8_t green = (uint8_t)   ((color & 0x00FF00) >> 8);
   uint8_t blue = (uint8_t)     (color & 0x0000FF);
-  setColor(red, green, blue);
+  setColor(red, green, blue, 255);
+}
+
+/**
+   Set LED-color to custom color instantly Uses a 32 bit value to set a color.
+
+   @param[in] color The 32 bit color value (eg. 0xFF0000 for red)
+   @param[in] brightness The overall brightness ([0-255])
+*/
+void RGBTools::setColor(uint32_t color, uint8_t brightness) {
+  uint8_t red =   (uint8_t)   ((color & 0xFF0000) >> 16);
+  uint8_t green = (uint8_t)   ((color & 0x00FF00) >> 8);
+  uint8_t blue = (uint8_t)     (color & 0x0000FF);
+  setColor(red, green, blue, brightness);
 }
 
 /**
