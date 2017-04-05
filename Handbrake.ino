@@ -532,7 +532,7 @@ static void handbrakeProcessSerial(void)
   {
     Serial.print("Enter a new upper deadband value (0 to 100) (Default is ");
     Serial.printf("%d", HANDBRAKE_UPPER_DEADZONE_BAND);
-    Serial.print(": ");
+    Serial.print("): ");
     g_saved_data.upper_deadband_percent = handbrakeProcessSerialLong(100, 0U, g_saved_data.upper_deadband_percent);
     Serial.printf("\r\nValue set to: %d\r\n", g_saved_data.upper_deadband_percent);
   }
@@ -540,7 +540,7 @@ static void handbrakeProcessSerial(void)
   {
     Serial.print("Enter a new lower deadband value (0 to 100) (Default is ");
     Serial.printf("%d", HANDBRAKE_LOWER_DEADZONE_BAND);
-    Serial.print(": ");
+    Serial.print("): ");
     g_saved_data.lower_deadband_percent = handbrakeProcessSerialLong(100, 0U, g_saved_data.lower_deadband_percent);
     Serial.printf("\r\nValue set to: %d\r\n", g_saved_data.lower_deadband_percent);
   }
