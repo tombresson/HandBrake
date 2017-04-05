@@ -13,11 +13,14 @@
  */
 void printConfigMenu(void)
 {
-  Serial.println("\f       Handbrake Config      ");
-  Serial.println("=============================");
-  Serial.println(" K - Set Key Binding         ");
-  Serial.println(" B - Set Button Threshold    ");
-  Serial.println(" S - Set Analog Value (Test) ");
+  Serial.println("\f       Handbrake Config          ");
+  Serial.println("================================== ");
+  Serial.println(" 1 - Set Key Binding               ");
+  Serial.println(" 2 - Set Button Threshold          ");
+  Serial.println(" 3 - Set LED Brightness            ");
+  Serial.println(" 4 - Set Upper (Pulled) Deadband   ");
+  Serial.println(" 5 - Set Lower (Released) Deadband ");
+  Serial.println(" D - Set ALL to DEFAULT ");
 }
 
 ///@brief Error handler
