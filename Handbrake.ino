@@ -55,9 +55,11 @@
 #define HANDBRAKE_POSITION_MIN            0.0F
 
 // The hysteresis (in percentage) that in used for the button/key press
-#define HANDBRAKE_THRESH_HYSTERESIS       5
+#define HANDBRAKE_THRESH_HYSTERESIS       5U
 
 #define HANDBRAKE_LED_DEFAULT_BRIGHTNESS  100
+
+#define HANDBRAKE_DEFAULT_BUTTON_THRESH   50
 
 // The percentage of the total range that the calibration is narrowed by
 // This will ensure that the analog axis travels from 0 to 100%
@@ -101,7 +103,7 @@ typedef struct
 
 /// @brief Definition of the revision number for checking to see if EEPROM data is compatable
 /// Anytime the EEPROM data structure is changed, this needs to be updated
-#define REVISION_NUM                      101
+#define REVISION_NUM                      102
 
 typedef struct
 {
@@ -112,9 +114,9 @@ typedef struct
   uint32_t button_threshold; //< Threshold (0%-100%) where the button is activated/deactivated
   uint16_t conf_key_code;    //< Configured key for the Keyboard Mode
   uint8_t  mode;             //< Current mode the device is in
-  uint8_t  led_brightness;
-  uint8_t  upper_deadband_percent;
-  uint8_t  lower_deadband_percent;
+  uint8_t  led_brightness;   //< The LED brightness for the LED indicator
+  uint8_t  upper_deadband_percent; //< The upper (pulled) deadband percentage
+  uint8_t  lower_deadband_percent; //< The lower (released) deadband percentage
 } eepromData_t;
 
 /******************************* FUNCTION DEFINITIONS *******************************/
@@ -143,9 +145,9 @@ static configMode_t modes[] =
 // to use a pin for both a digital button and analog
 // axis.  The pullup resistor will interfere with
 // the analog voltage.
-const int numButtons = 8;  // 16 for Teensy, 32 for Teensy++
+static const int numButtons = 8;  // 16 for Teensy, 32 for Teensy++
 
-const char *gp_key_strings[] =
+static const char *gp_key_strings[] =
 { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
   "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
   "U", "V", "W", "X", "Y", "Z", "1", "2", "3", "4",
@@ -161,7 +163,7 @@ const char *gp_key_strings[] =
   "KEYPAD_0", "KEYPAD_PERIOD"
 };
 
-const uint16_t g_key_codes[] =
+static const uint16_t g_key_codes[] =
 { KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J,
   KEY_K, KEY_L, KEY_M, KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T,
   KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z, KEY_1, KEY_2, KEY_3, KEY_4,
@@ -176,6 +178,9 @@ const uint16_t g_key_codes[] =
   KEYPAD_2, KEYPAD_3, KEYPAD_4, KEYPAD_5, KEYPAD_6, KEYPAD_7, KEYPAD_8, KEYPAD_9,
   KEYPAD_0, KEYPAD_PERIOD
 };
+
+// Get the count of the elements in the array
+static const uint32_t k_button_array_cnt = COUNT_OF(gp_key_strings);
 
 // Holds the last selected mode
 static uint8_t g_last_mode = 0U;
@@ -195,15 +200,20 @@ static uint16_t g_cal_data_max = 0U;
 // initialize a common cathode LED
 RGBTools rgb(RGB_R_PIN,RGB_G_PIN,RGB_B_PIN);
 
-static eepromData_t g_saved_data = 
+static eepromData_t g_saved_data;
+
+static const eepromData_t k_default_save_data = 
 {
-  .rev_number = 0U,
-  .data_size = 0U,
+  .rev_number = REVISION_NUM,
+  .data_size = sizeof(eepromData_t),
   .cal_max = 0U,
   .cal_min = 0U,
-  .button_threshold = 0U,
-  .conf_key_code = 0U,
-  .mode = 0U,
+  .button_threshold = HANDBRAKE_DEFAULT_BUTTON_THRESH,
+  .conf_key_code = 24U, //< Index of KEY_X
+  .mode = HANDBRAKE_ANALOG_MODE,
+  .led_brightness = HANDBRAKE_LED_DEFAULT_BRIGHTNESS,
+  .upper_deadband_percent = HANDBRAKE_UPPER_DEADZONE_BAND,
+  .lower_deadband_percent = HANDBRAKE_LOWER_DEADZONE_BAND,
 };
 
 // ********** INPUT CONFIG ************/
@@ -352,13 +362,14 @@ void loop(void) {
     else if (g_saved_data.mode == HANDBRAKE_BUTTON_MODE)
     {
       // Set the button if above the threshold
-      if (position >= g_button_thresh)
+      if (position >= (float)g_saved_data.button_threshold)
       {
         Joystick.button(HANDBRAKE_JOY_BUTTON, true);
       }
       // Release the button if below the threshold with the hysteresis or if
       // position happens to become 0
-      else if((position < (g_button_thresh - HANDBRAKE_THRESH_HYSTERESIS)) || (position == 0.0f))
+      else if((position < (float)(g_saved_data.button_threshold  - HANDBRAKE_THRESH_HYSTERESIS)) || 
+              (position == 0.0f))
       {
         Joystick.button(HANDBRAKE_JOY_BUTTON, false);
       }
@@ -371,13 +382,14 @@ void loop(void) {
     else if (g_saved_data.mode == HANDBRAKE_KEYBOARD_MODE)
     {
       // Set keypress if above the threshold
-      if (position >= g_button_thresh)
+      if (position >= (float)g_saved_data.button_threshold)
       {
-        Keyboard.set_key1(g_bound_key);
+        Keyboard.set_key1(g_saved_data.conf_key_code);
       }
       // Release the button if below the threshold with the hysteresis or if
       // position happens to become 0
-      else if((position < (g_button_thresh - HANDBRAKE_THRESH_HYSTERESIS)) || (position == 0.0f))
+      else if((position < (float)(g_saved_data.button_threshold - HANDBRAKE_THRESH_HYSTERESIS)) || 
+              (position == 0.0f))
       {
         Keyboard.set_key1(0);
       }
@@ -514,21 +526,36 @@ static void handbrakeProcessSerial(void)
 {
   // Process Recognized commands
   uint8_t byte = Serial.read();
-  if (byte == '1')
+  if (byte == '1')      // Key Binding 
   {
-
+    Serial.print("Please type the name of the key to bind and press ENTER:\r\n\r\n");
+    uint32_t idx; 
+    for(idx = 0U; idx < k_button_array_cnt; idx++)
+    {
+      Serial.printf("%s", gp_key_strings[idx]);
+      if(idx < (k_button_array_cnt - 1))
+      {
+        Serial.print(", ");
+      }
+    }
+    Serial.print("\r\n");
   }
-  else if (byte == '2')
+  else if (byte == '2') // Button Threshold
   {
     // @todo: When developed, the button threshold should be a 0-100% value of the calibrated range
+    Serial.print("Enter a new button threshold value (5 to 95) (Default is ");
+    Serial.printf("%d", HANDBRAKE_DEFAULT_BUTTON_THRESH);
+    Serial.print("): ");
+    g_saved_data.button_threshold = handbrakeProcessSerialLong(95U, 5U, g_saved_data.button_threshold);
+    Serial.printf("\r\nValue set to: %d\r\n", g_saved_data.button_threshold);
   }
-  else if (byte == '3')
+  else if (byte == '3') // LED Brightness
   {
     Serial.print("Enter a new brightness value (1 to 255): ");
     g_saved_data.led_brightness = handbrakeProcessSerialLong(255U, 1U, g_saved_data.led_brightness);
     Serial.printf("\r\nValue set to: %d\r\n", g_saved_data.led_brightness);
   }
-    else if (byte == '4')
+  else if (byte == '4') // Upper (Pulled) Deadband
   {
     Serial.print("Enter a new upper deadband value (0 to 100) (Default is ");
     Serial.printf("%d", HANDBRAKE_UPPER_DEADZONE_BAND);
@@ -536,7 +563,7 @@ static void handbrakeProcessSerial(void)
     g_saved_data.upper_deadband_percent = handbrakeProcessSerialLong(100, 0U, g_saved_data.upper_deadband_percent);
     Serial.printf("\r\nValue set to: %d\r\n", g_saved_data.upper_deadband_percent);
   }
-    else if (byte == '5')
+  else if (byte == '5') // Lower (Released) Deadband
   {
     Serial.print("Enter a new lower deadband value (0 to 100) (Default is ");
     Serial.printf("%d", HANDBRAKE_LOWER_DEADZONE_BAND);
@@ -544,12 +571,40 @@ static void handbrakeProcessSerial(void)
     g_saved_data.lower_deadband_percent = handbrakeProcessSerialLong(100, 0U, g_saved_data.lower_deadband_percent);
     Serial.printf("\r\nValue set to: %d\r\n", g_saved_data.lower_deadband_percent);
   }
+  else if (byte == 'D') //Reset Defaults
+  {
+    // Reset all of the save data, this could be changed to be more targeted of a reset
+    // but at the frequency of the use this function should see, it doesn't seem worth it.
+    g_saved_data = k_default_save_data;
+    // Save the defaults
+    handbrakeUpdateSettings(&g_saved_data);
+    Serial.print("All values restored to default. Please calibrate handbrake again.");
+  }
   else
   {
     printConfigMenu();
   }
 }
 
+#if 0
+static uint32_t handbrakeProcessSerialFindKey(uint32_t origional_value)
+{
+  uint32_t val = origional_value;
+  uint32_t num_bytes = Serial.readBytesUntil('\r', &g_serial_buff[0U], 5U);
+   if (num_bytes > 0)
+   {
+     val = strtoul((const char *)&g_serial_buff[0U], NULL, 10);
+     // Keep the value bounded
+     val = (val > upper_bound) ? upper_bound : val;
+     val = (val < lower_bound) ? lower_bound : val;
+   }
+   else
+   {
+     Serial.print("Timed Out.");
+   }
+   return val;
+}
+#endif
 
 static uint32_t handbrakeProcessSerialLong(uint32_t upper_bound, uint32_t lower_bound, 
 uint32_t origional_value)
