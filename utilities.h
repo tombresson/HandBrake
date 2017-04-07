@@ -14,5 +14,6 @@
 /*********************************** DEFINITIONS  ************************************/
 
 void printConfigMenu(void);
+uint32_t serialReadBytes(uint8_t *p_buff, uint32_t len, uint32_t timeout);
 void __assert(const char *__func, const char *__file, int __lineno, const char *__sexp);
 void error(void);
