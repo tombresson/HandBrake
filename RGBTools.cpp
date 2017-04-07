@@ -51,7 +51,25 @@ RGBTools::RGBTools(uint8_t r, uint8_t g, uint8_t b, Mode mode) {
    @param[in] g The green value ([0-255])
    @param[in] b The blue value ([0-255])
 */
-void RGBTools::setColor(uint8_t r, uint8_t g, uint8_t b) {
+void RGBTools::setColor(uint8_t r, uint8_t g, uint8_t b)
+{
+  setColor(r,g,b,255);  
+}
+
+/**
+   Set LED-color to custom color instantly
+
+   @param[in] r The red value ([0-255])
+   @param[in] g The green value ([0-255])
+   @param[in] b The blue value ([0-255])
+   @param[in] brightness The overall brightness ([0-255])
+*/
+void RGBTools::setColor(uint8_t r, uint8_t g, uint8_t b,  uint8_t brightness) {
+
+  // Apply the brightness modifier
+  r = ((255 - brightness) > r) ? 0U : (r - (255 - brightness));
+  b = ((255 - brightness) > b) ? 0U : (b - (255 - brightness));
+  g = ((255 - brightness) > g) ? 0U : (g - (255 - brightness));
 
   // set color of LED
   if (mode == COMMON_CATHODE)
@@ -85,7 +103,20 @@ void RGBTools::setColor(uint32_t color) {
   uint8_t red =   (uint8_t)   ((color & 0xFF0000) >> 16);
   uint8_t green = (uint8_t)   ((color & 0x00FF00) >> 8);
   uint8_t blue = (uint8_t)     (color & 0x0000FF);
-  setColor(red, green, blue);
+  setColor(red, green, blue, 255);
+}
+
+/**
+   Set LED-color to custom color instantly Uses a 32 bit value to set a color.
+
+   @param[in] color The 32 bit color value (eg. 0xFF0000 for red)
+   @param[in] brightness The overall brightness ([0-255])
+*/
+void RGBTools::setColor(uint32_t color, uint8_t brightness) {
+  uint8_t red =   (uint8_t)   ((color & 0xFF0000) >> 16);
+  uint8_t green = (uint8_t)   ((color & 0x00FF00) >> 8);
+  uint8_t blue = (uint8_t)     (color & 0x0000FF);
+  setColor(red, green, blue, brightness);
 }
 
 /**
@@ -134,30 +165,38 @@ void RGBTools::fadeTo(uint8_t r, uint8_t g, uint8_t b, int steps, int duration) 
 */
 void RGBTools::blinkEnable(uint32_t rate, uint8_t duty_cycle)
 {
-  if (duty_cycle == 100U)
+  // Only blink if the rate is greater than zero
+  if(rate > 0U)
   {
-    // Disable blinking
-    this->blink_enabled = false;
+    if (duty_cycle == 100U)
+    {
+      // Disable blinking
+      this->blink_enabled = false;
 
-    // turn LED back on fully
-    this->setColor(this->curr_r, this->curr_g, this->curr_b);
+      // turn LED back on fully
+      this->setColor(this->curr_r, this->curr_g, this->curr_b);
 
-    // Reset LED state
-    this->blink_led_state = true;
-  }
-  else if ( duty_cycle == 0U)
-  {
-    this->setColor(Color::OFF);
+      // Reset LED state
+      this->blink_led_state = true;
+    }
+    else if ( duty_cycle == 0U)
+    {
+      this->setColor(Color::OFF);
+    }
+    else
+    {
+      this->blink_rate_ms = rate;
+
+      // limit duty cycle to 100
+      this->blink_duty_cycle = min(duty_cycle, 100);
+
+      this->blink_enabled = true;
+      this->blink_led_state = true;
+    }
   }
   else
   {
-    this->blink_rate_ms = rate;
-
-    // limit duty cycle to 100
-    this->blink_duty_cycle = min(duty_cycle, 100);
-
-    this->blink_enabled = true;
-    this->blink_led_state = true;
+    blinkDisable();
   }
 }
 
