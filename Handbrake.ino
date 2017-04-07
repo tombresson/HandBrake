@@ -123,7 +123,9 @@ static uint32_t handbrakeGetModeIdx(void);
 static void handbrakeUpdateSettings(eepromData_t *p_data);
 static void handbrakeLoadSettings(eepromData_t *p_data);
 static bool handbrakeValidateSettings(const eepromData_t *p_data);
-static uint32_t handbrakeProcessSerialLong(uint32_t upper_bound, uint32_t lower_bound, uint32_t origional_value);
+static uint32_t handbrakeProcessSerialLong(uint32_t upper_bound, uint32_t lower_bound, uint32_t original_value);
+static uint16_t handbrakeProcessSerialFindKey(uint16_t original_key);
+static uint32_t handbrakeFindKeyIdx(uint16_t key_code);
 
 /************************************* GLOBALS **************************************/
 
@@ -515,57 +517,69 @@ static void handbrakeProcessSerial(void)
   uint8_t byte = Serial.read();
   if (byte == '1') // Key Binding
   {
-    Serial.print("Please type the name of the key to bind and press ENTER:\r\n\r\n");
-    uint32_t idx; 
-    for(idx = 0U; idx < k_button_array_cnt; idx++)
+    Serial.print("\r\nList of Usable Keys:\r\n\r\n");
+    uint32_t key_idx;
+    for (key_idx = 0U; key_idx < k_button_array_cnt; key_idx++)
     {
-      Serial.printf("%s", gp_key_strings[idx]);
-      if(idx < (k_button_array_cnt - 1))
+      Serial.printf("%s", gp_key_strings[key_idx]);
+      if (key_idx < (k_button_array_cnt - 1))
       {
         Serial.print(", ");
       }
     }
-    Serial.print("\r\n");
+
+    Serial.print("Please type the name of the key to bind and press ENTER: ");
+    uint16_t new_key = handbrakeProcessSerialFindKey(g_saved_data.conf_key_code);
+    uint32_t new_key_idx = handbrakeFindKeyIdx(new_key);
+    if(new_key_idx < k_button_array_cnt)
+    {
+      g_saved_data.conf_key_code = new_key;
+      Serial.printf("\r\nKey set to: %s\r\n", gp_key_strings[new_key_idx]);
+    }
+    else
+    {
+      Serial.printf("Failed to set key to index %d.", new_key_idx);
+    }
   }
   else if (byte == '2') // Button Threshold
   {
     // @todo: When developed, the button threshold should be a 0-100% value of the calibrated range
-    Serial.print("Enter a new button threshold value (5 to 95) (Default is ");
-    Serial.printf("%d", HANDBRAKE_DEFAULT_BUTTON_THRESH);
-    Serial.print("): ");
+    Serial.print("Enter a new button threshold value (5 to 95)");
+    Serial.printf(" (Current:%d/Default:%d): ", g_saved_data.button_threshold, HANDBRAKE_DEFAULT_BUTTON_THRESH);
     g_saved_data.button_threshold = handbrakeProcessSerialLong(95U, 5U, g_saved_data.button_threshold);
     Serial.printf("\r\nValue set to: %d\r\n", g_saved_data.button_threshold);
   }
   else if (byte == '3') // LED Brightness
   {
-    Serial.print("Enter a new brightness value (1 to 255): ");
+    Serial.print("Enter a new brightness value (1 to 255)");
+    Serial.printf(" (Current:%d/Default:%d): ", g_saved_data.led_brightness, HANDBRAKE_LED_DEFAULT_BRIGHTNESS);
     g_saved_data.led_brightness = handbrakeProcessSerialLong(255U, 1U, g_saved_data.led_brightness);
     Serial.printf("\r\nValue set to: %d\r\n", g_saved_data.led_brightness);
   }
   else if (byte == '4') // Upper (Pulled) Deadband
   {
-    Serial.print("Enter a new upper deadband value (0 to 100) (Default is ");
-    Serial.printf("%d", HANDBRAKE_UPPER_DEADZONE_BAND);
-    Serial.print("): ");
+    Serial.print("Enter a new upper deadband value (0 to 100)");
+    Serial.printf(" (Current:%d/Default:%d): ", g_saved_data.upper_deadband_percent, HANDBRAKE_UPPER_DEADZONE_BAND);
     g_saved_data.upper_deadband_percent = handbrakeProcessSerialLong(100, 0U, g_saved_data.upper_deadband_percent);
     Serial.printf("\r\nValue set to: %d\r\n", g_saved_data.upper_deadband_percent);
   }
   else if (byte == '5') // Lower (Released) Deadband
   {
-    Serial.print("Enter a new lower deadband value (0 to 100) (Default is ");
-    Serial.printf("%d", HANDBRAKE_LOWER_DEADZONE_BAND);
-    Serial.print("): ");
+    Serial.print("Enter a new lower deadband value (0 to 100)");
+    Serial.printf(" (Current:%d/Default:%d): ", g_saved_data.lower_deadband_percent, HANDBRAKE_LOWER_DEADZONE_BAND);
     g_saved_data.lower_deadband_percent = handbrakeProcessSerialLong(100, 0U, g_saved_data.lower_deadband_percent);
     Serial.printf("\r\nValue set to: %d\r\n", g_saved_data.lower_deadband_percent);
   }
-  else if (byte == 'D') //Reset Defaults
+  else if ((byte == 'D') || (byte == 'd')) //Reset Defaults
   {
     // Reset all of the save data, this could be changed to be more targeted of a reset
     // but at the frequency of the use this function should see, it doesn't seem worth it.
     g_saved_data = k_default_save_data;
     // Save the defaults
     handbrakeUpdateSettings(&g_saved_data);
-    Serial.print("All values restored to default. Please calibrate handbrake again.");
+    // Restore mode back to config so we don't leave this mode
+    g_saved_data.mode = HANDBRAKE_CONFIG_MODE;
+    Serial.print("All values restored to default. Please calibrate handbrake again.\r\n");
   }
   else
   {
@@ -573,25 +587,43 @@ static void handbrakeProcessSerial(void)
   }
 }
 
-#if 0
-static uint32_t handbrakeProcessSerialFindKey(uint32_t origional_value)
+static uint16_t handbrakeProcessSerialFindKey(uint16_t original_key)
 {
-  uint32_t val = origional_value;
-  uint32_t num_bytes = Serial.readBytesUntil('\r', &g_serial_buff[0U], 5U);
-   if (num_bytes > 0)
-   {
-     val = strtoul((const char *)&g_serial_buff[0U], NULL, 10);
-     // Keep the value bounded
-     val = (val > upper_bound) ? upper_bound : val;
-     val = (val < lower_bound) ? lower_bound : val;
-   }
-   else
-   {
-     Serial.print("Timed Out.");
-   }
-   return val;
+  bool match_found = false;
+  uint32_t key_idx = 0;
+  uint32_t num_bytes = serialReadBytes(&g_serial_buff[0U], HANDBRAKE_SERIAL_BUFF_SIZE, 5000U);
+  if (num_bytes > 0)
+  {
+    // Make sure buffer is null terminated
+    g_serial_buff[HANDBRAKE_SERIAL_BUFF_SIZE - 1] = '\0';
+
+    // Convert all lower case to upper case
+    uint32_t idx;
+    for(idx = 0U; idx < HANDBRAKE_SERIAL_BUFF_SIZE; idx++)
+    {
+      uint8_t c = g_serial_buff[idx];
+      g_serial_buff[idx] = ((c <= 'z' && c >= 'a') ? c - 32 : c);
+    }
+
+    // Find the index of the string that was typed
+    while((key_idx < k_button_array_cnt) && !match_found)
+    {
+      int32_t result = strcmp(gp_key_strings[key_idx], (const char *)g_serial_buff);
+      if(result == 0)
+      {
+        match_found = true;
+      }
+      else
+      {
+        key_idx++;
+      }
+    }
+  }
+
+  // Either return the match or the original key
+  return ((match_found) ? g_key_codes[key_idx] : original_key );
+
 }
-#endif
 
 static uint32_t handbrakeProcessSerialLong(uint32_t upper_bound, uint32_t lower_bound,
                                            uint32_t original_value)
@@ -748,17 +780,22 @@ static uint32_t handbrakeGetModeIdx(void)
      (g_saved_data.mode == HANDBRAKE_CALIBRATE_MODE) ? g_last_mode : g_saved_data.mode; 
 
     // Find index of current mode
-    uint32_t idx = 0U;
-    while ( (idx < COUNT_OF(modes)) && (modes[idx].config_mode != mode))
-    { 
-        ++idx; 
-    }
-    // If idx is the number of elements, element wasn't found in the list.  
-    if(idx == COUNT_OF(modes))
-    {
-      // Reset the index to 0
-      idx = 0U;
-    }
 
-    return idx;
+/*
+ * @brief Finds the index of a key based on the keycode
+ * @param key_code The code for the key in question
+ * @return The index of the corresponding key
+ */
+static uint32_t handbrakeFindKeyIdx(uint16_t key_code)
+{
+    // Get the index of the element 
+    uint32_t idx = 0U;
+    while (( idx < k_button_array_cnt) && (g_key_codes[idx] != key_code))
+    {
+        ++idx;
+    } 
+
+    // If idx is the number of elements, element wasn't found in the list.  
+    return ((idx != k_button_array_cnt) ? idx: 0U);
 }
+
