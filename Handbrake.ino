@@ -773,13 +773,27 @@ static void handbrakeInitialConditions(void)
 
 static uint32_t handbrakeGetModeIdx(void)
 {
-    // Determine mode to find index of
-    // If calibration is the active mode, find the index of the previous mode
-    uint32_t mode =
+  // Determine mode to find index of
+  // If calibration is the active mode, find the index of the previous mode
+  uint32_t mode =
       // Holds the mode for the last loop cycle
-     (g_saved_data.mode == HANDBRAKE_CALIBRATE_MODE) ? g_last_mode : g_saved_data.mode; 
+      (g_saved_data.mode == HANDBRAKE_CALIBRATE_MODE) ? g_last_mode : g_saved_data.mode;
 
-    // Find index of current mode
+  // Find index of current mode
+  uint32_t idx = 0U;
+  while ((idx < COUNT_OF(modes)) && (modes[idx].config_mode != mode))
+  {
+    ++idx;
+  }
+  // If idx is the number of elements, element wasn't found in the list.
+  if (idx == COUNT_OF(modes))
+  {
+    // Reset the index to 0
+    idx = 0U;
+  }
+
+  return idx;
+}
 
 /*
  * @brief Finds the index of a key based on the keycode
