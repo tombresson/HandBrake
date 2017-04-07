@@ -384,6 +384,7 @@ void loop(void)
       {
         // Do nothing
       }
+      Keyboard.send_now();
     }
   }
   else if (g_saved_data.mode == HANDBRAKE_CONFIG_MODE)
