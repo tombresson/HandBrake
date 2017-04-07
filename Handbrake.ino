@@ -13,7 +13,6 @@
 
 #include <stdint.h>
 
-
 #include <EEPROMex.h>
 #include <EEPROMVar.h>
 
@@ -21,102 +20,98 @@
 #include "RGBTools.h"
 
 /************************************** MACROS **************************************/
-#define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
-
 // Turns Debug on and off
-#define HANDBRAKE_DEBUG                   1
+#define HANDBRAKE_DEBUG 0
 
-// Turn on verbose debugging 
-#define HANDBRAKE_DEBUG_VERBOSE           0
+// Turn on verbose debugging
+#define HANDBRAKE_DEBUG_VERBOSE 0
 
 // EEPROM abstracted address position
-#define HANDBRAKE_EEPROM_ADDR             0U
+#define HANDBRAKE_EEPROM_ADDR 0U
 
 // Buffer for serial data
-#define HANDBRAKE_SERIAL_BUFF_SIZE        64U
+#define HANDBRAKE_SERIAL_BUFF_SIZE 64U
 
-#define HANDBRAKE_ADC_MAX                 1023U
+#define HANDBRAKE_ADC_MAX 1023U
 
-#define HANDBRAKE_JOY_AXIS_MAX            1023U
+#define HANDBRAKE_JOY_AXIS_MAX 1023U
 
 // Button to send for the joystick button threshold
-#define HANDBRAKE_JOY_BUTTON              1U
+#define HANDBRAKE_JOY_BUTTON 1U
 
 // Duration of button hold to enter calibration mode
-#define HANDBRAKE_BUTTON_HOLD_TIME_MS     5000U
+#define HANDBRAKE_BUTTON_HOLD_TIME_MS 5000U
 
 // Serial Config Parsing Timeout
-#define HANDBRAKE_SERIAL_TIMEOUT          5000
+#define HANDBRAKE_SERIAL_TIMEOUT 5000
 
 // Resting value for joystick position
-#define JOYSTICK_RESTING_POS              512U
+#define JOYSTICK_RESTING_POS 512U
 
-#define HANDBRAKE_POSITION_MAX            100.0F
-#define HANDBRAKE_POSITION_MIN            0.0F
+#define HANDBRAKE_POSITION_MAX 100.0F
+#define HANDBRAKE_POSITION_MIN 0.0F
 
 // The hysteresis (in percentage) that in used for the button/key press
-#define HANDBRAKE_THRESH_HYSTERESIS       5U
+#define HANDBRAKE_THRESH_HYSTERESIS 5U
 
-#define HANDBRAKE_LED_DEFAULT_BRIGHTNESS  100
+#define HANDBRAKE_LED_DEFAULT_BRIGHTNESS 100
 
-#define HANDBRAKE_DEFAULT_BUTTON_THRESH   50
+#define HANDBRAKE_DEFAULT_BUTTON_THRESH 50U
 
 // The percentage of the total range that the calibration is narrowed by
 // This will ensure that the analog axis travels from 0 to 100%
 // Upper deadband is for fully pulled back position, lower deadband is for released position
-#define HANDBRAKE_UPPER_DEADZONE_BAND           5U
-#define HANDBRAKE_LOWER_DEADZONE_BAND           10U
+#define HANDBRAKE_UPPER_DEADZONE_BAND 5U
+#define HANDBRAKE_LOWER_DEADZONE_BAND 10U
 
 // GPIO pin for the mode select button
-#define HANDBRAKE_MODE_SELECT_BUTTON      12
+#define HANDBRAKE_MODE_SELECT_BUTTON 12
 
 // Handbrake Modes
-#define HANDBRAKE_UNKNOWN_MODE            0x00
-#define HANDBRAKE_KEYBOARD_MODE           0x01
-#define HANDBRAKE_BUTTON_MODE             0x02
-#define HANDBRAKE_ANALOG_MODE             0x03
-#define HANDBRAKE_CALIBRATE_MODE          0x04
-#define HANDBRAKE_CONFIG_MODE             0x05
+#define HANDBRAKE_UNKNOWN_MODE 0x00
+#define HANDBRAKE_KEYBOARD_MODE 0x01
+#define HANDBRAKE_BUTTON_MODE 0x02
+#define HANDBRAKE_ANALOG_MODE 0x03
+#define HANDBRAKE_CALIBRATE_MODE 0x04
+#define HANDBRAKE_CONFIG_MODE 0x05
 
-#define HANDBRAKE_NUM_MODES               0x06
-
+#define HANDBRAKE_NUM_MODES 0x06
 
 /*********************************** DEFINITIONS ************************************/
 
-const char* k_mode_names[HANDBRAKE_NUM_MODES] = 
-{
-  "UNKNOWN", //< Mode 0 is undefined
-  "KEYBOARD",
-  "BUTTON",
-  "ANALOG",
-  "CALIBRATION",
-  "CONFIG"
-};
+const char *k_mode_names[HANDBRAKE_NUM_MODES] =
+    {
+        "UNKNOWN", //< Mode 0 is undefined
+        "KEYBOARD",
+        "BUTTON",
+        "ANALOG",
+        "CALIBRATION",
+        "CONFIG"};
 
 typedef struct
 {
   uint32_t config_mode;
   uint32_t led_color;
   uint32_t blink_interval;
-  uint8_t  duty_cycle;
-}configMode_t;
+  uint8_t duty_cycle;
+} configMode_t;
 
 /// @brief Definition of the revision number for checking to see if EEPROM data is compatable
 /// Anytime the EEPROM data structure is changed, this needs to be updated
-#define REVISION_NUM                      102
+#define REVISION_NUM 102
 
 typedef struct
 {
-  uint32_t rev_number;       //< Revision number of the eeprom data struct
-  uint32_t data_size;        //< Size of the data structure
-  uint32_t cal_max;          //< Raw ADC value that represents 100%
-  uint32_t cal_min;          //< Raw ADC value that represents 0%
-  uint32_t button_threshold; //< Threshold (0%-100%) where the button is activated/deactivated
-  uint16_t conf_key_code;    //< Configured key for the Keyboard Mode
-  uint8_t  mode;             //< Current mode the device is in
-  uint8_t  led_brightness;   //< The LED brightness for the LED indicator
-  uint8_t  upper_deadband_percent; //< The upper (pulled) deadband percentage
-  uint8_t  lower_deadband_percent; //< The lower (released) deadband percentage
+  uint32_t rev_number;            //< Revision number of the eeprom data struct
+  uint32_t data_size;             //< Size of the data structure
+  uint32_t cal_max;               //< Raw ADC value that represents 100%
+  uint32_t cal_min;               //< Raw ADC value that represents 0%
+  uint32_t button_threshold;      //< Threshold (0%-100%) where the button is activated/deactivated
+  uint16_t conf_key_code;         //< Configured key for the Keyboard Mode
+  uint8_t mode;                   //< Current mode the device is in
+  uint8_t led_brightness;         //< The LED brightness for the LED indicator
+  uint8_t upper_deadband_percent; //< The upper (pulled) deadband percentage
+  uint8_t lower_deadband_percent; //< The lower (released) deadband percentage
 } eepromData_t;
 
 /******************************* FUNCTION DEFINITIONS *******************************/
@@ -133,63 +128,54 @@ static uint32_t handbrakeProcessSerialLong(uint32_t upper_bound, uint32_t lower_
 /************************************* GLOBALS **************************************/
 
 // Array of modes which can be cycled through by momentary press on the button
-static configMode_t modes[] = 
-{
-  {HANDBRAKE_KEYBOARD_MODE, Color::GREEN,     0,  0}, 
-  {HANDBRAKE_BUTTON_MODE,   Color::BLUE,      0,  0}, 
-  {HANDBRAKE_ANALOG_MODE,   Color::RED,       0,  0}, 
-  {HANDBRAKE_CONFIG_MODE,   Color::PURPLE, 1000, 90}
-};
+static configMode_t modes[] =
+    {
+        {HANDBRAKE_KEYBOARD_MODE, Color::GREEN, 0, 0},
+        {HANDBRAKE_BUTTON_MODE, Color::BLUE, 0, 0},
+        {HANDBRAKE_ANALOG_MODE, Color::RED, 0, 0},
+        {HANDBRAKE_CONFIG_MODE, Color::PURPLE, 1000, 90}};
 
 // Configure the number of buttons.  Be careful not
 // to use a pin for both a digital button and analog
 // axis.  The pullup resistor will interfere with
 // the analog voltage.
-static const int numButtons = 8;  // 16 for Teensy, 32 for Teensy++
+static const int numButtons = 8; // 16 for Teensy, 32 for Teensy++
 
 static const char *gp_key_strings[] =
-{ "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
-  "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
-  "U", "V", "W", "X", "Y", "Z", "1", "2", "3", "4",
-  "5", "6", "7", "8", "9", "0", "ENTER", "ESC", "BACKSPACE",
-  "TAB", "SPACE", "MINUS", "EQUAL", "LEFT_BRACE", "RIGHT_BRACE",
-  "BACKSLASH", "NON_US_NUM", "SEMICOLON", "QUOTE", "TILDE", "COMMA",
-  "PERIOD", "SLASH", "CAPS_LOCK", "F1", "F2", "F3", "F4", "F5",
-  "F6", "F7", "F8", "F9", "F10", "F11", "F12", "PRINTSCREEN",
-  "SCROLL_LOCK", "PAUSE", "INSERT", "HOME", "PAGE_UP", "DELETE",
-  "END", "PAGE_DOWN", "RIGHT", "LEFT", "DOWN", "UP", "NUM_LOCK",
-  "KEYPAD_SLASH", "KEYPAD_ASTERIX", "KEYPAD_MINUS", "KEYPAD_PLUS", "KEYPAD_ENTER", "KEYPAD_1",
-  "KEYPAD_2", "KEYPAD_3", "KEYPAD_4", "KEYPAD_5", "KEYPAD_6", "KEYPAD_7", "KEYPAD_8", "KEYPAD_9",
-  "KEYPAD_0", "KEYPAD_PERIOD"
-};
+    {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
+     "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
+     "U", "V", "W", "X", "Y", "Z", "1", "2", "3", "4",
+     "5", "6", "7", "8", "9", "0", "ENTER", "ESC", "BACKSPACE",
+     "TAB", "SPACE", "MINUS", "EQUAL", "LEFT_BRACE", "RIGHT_BRACE",
+     "BACKSLASH", "NON_US_NUM", "SEMICOLON", "QUOTE", "TILDE", "COMMA",
+     "PERIOD", "SLASH", "CAPS_LOCK", "F1", "F2", "F3", "F4", "F5",
+     "F6", "F7", "F8", "F9", "F10", "F11", "F12", "PRINTSCREEN",
+     "SCROLL_LOCK", "PAUSE", "INSERT", "HOME", "PAGE_UP", "DELETE",
+     "END", "PAGE_DOWN", "RIGHT", "LEFT", "DOWN", "UP", "NUM_LOCK",
+     "KEYPAD_SLASH", "KEYPAD_ASTERIX", "KEYPAD_MINUS", "KEYPAD_PLUS", "KEYPAD_ENTER", "KEYPAD_1",
+     "KEYPAD_2", "KEYPAD_3", "KEYPAD_4", "KEYPAD_5", "KEYPAD_6", "KEYPAD_7", "KEYPAD_8", "KEYPAD_9",
+     "KEYPAD_0", "KEYPAD_PERIOD"};
 
 static const uint16_t g_key_codes[] =
-{ KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J,
-  KEY_K, KEY_L, KEY_M, KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T,
-  KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z, KEY_1, KEY_2, KEY_3, KEY_4,
-  KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, KEY_ENTER, KEY_ESC, KEY_BACKSPACE,
-  KEY_TAB, KEY_SPACE, KEY_MINUS, KEY_EQUAL, KEY_LEFT_BRACE, KEY_RIGHT_BRACE,
-  KEY_BACKSLASH, KEY_NON_US_NUM, KEY_SEMICOLON, KEY_QUOTE, KEY_TILDE, KEY_COMMA,
-  KEY_PERIOD, KEY_SLASH, KEY_CAPS_LOCK, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5,
-  KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12, KEY_PRINTSCREEN,
-  KEY_SCROLL_LOCK, KEY_PAUSE, KEY_INSERT, KEY_HOME, KEY_PAGE_UP, KEY_DELETE,
-  KEY_END, KEY_PAGE_DOWN, KEY_RIGHT, KEY_LEFT, KEY_DOWN, KEY_UP, KEY_NUM_LOCK,
-  KEYPAD_SLASH, KEYPAD_ASTERIX, KEYPAD_MINUS, KEYPAD_PLUS, KEYPAD_ENTER, KEYPAD_1,
-  KEYPAD_2, KEYPAD_3, KEYPAD_4, KEYPAD_5, KEYPAD_6, KEYPAD_7, KEYPAD_8, KEYPAD_9,
-  KEYPAD_0, KEYPAD_PERIOD
-};
+    {KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J,
+     KEY_K, KEY_L, KEY_M, KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T,
+     KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z, KEY_1, KEY_2, KEY_3, KEY_4,
+     KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, KEY_ENTER, KEY_ESC, KEY_BACKSPACE,
+     KEY_TAB, KEY_SPACE, KEY_MINUS, KEY_EQUAL, KEY_LEFT_BRACE, KEY_RIGHT_BRACE,
+     KEY_BACKSLASH, KEY_NON_US_NUM, KEY_SEMICOLON, KEY_QUOTE, KEY_TILDE, KEY_COMMA,
+     KEY_PERIOD, KEY_SLASH, KEY_CAPS_LOCK, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5,
+     KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12, KEY_PRINTSCREEN,
+     KEY_SCROLL_LOCK, KEY_PAUSE, KEY_INSERT, KEY_HOME, KEY_PAGE_UP, KEY_DELETE,
+     KEY_END, KEY_PAGE_DOWN, KEY_RIGHT, KEY_LEFT, KEY_DOWN, KEY_UP, KEY_NUM_LOCK,
+     KEYPAD_SLASH, KEYPAD_ASTERIX, KEYPAD_MINUS, KEYPAD_PLUS, KEYPAD_ENTER, KEYPAD_1,
+     KEYPAD_2, KEYPAD_3, KEYPAD_4, KEYPAD_5, KEYPAD_6, KEYPAD_7, KEYPAD_8, KEYPAD_9,
+     KEYPAD_0, KEYPAD_PERIOD};
 
 // Get the count of the elements in the array
 static const uint32_t k_button_array_cnt = COUNT_OF(gp_key_strings);
 
 // Holds the last selected mode
 static uint8_t g_last_mode = 0U;
-
-/// The button press threshold
-static float g_button_thresh = 50.0F;
-
-// The key bound to the threshold crossing
-static uint32_t g_bound_key = KEYPAD_8;
 
 // Serial buffer, for processing serial data
 static uint8_t g_serial_buff[HANDBRAKE_SERIAL_BUFF_SIZE];
@@ -198,22 +184,22 @@ static uint16_t g_cal_data_min = UINT16_MAX;
 static uint16_t g_cal_data_max = 0U;
 
 // initialize a common cathode LED
-RGBTools rgb(RGB_R_PIN,RGB_G_PIN,RGB_B_PIN);
+RGBTools rgb(RGB_R_PIN, RGB_G_PIN, RGB_B_PIN);
 
 static eepromData_t g_saved_data;
 
-static const eepromData_t k_default_save_data = 
-{
-  .rev_number = REVISION_NUM,
-  .data_size = sizeof(eepromData_t),
-  .cal_max = 0U,
-  .cal_min = 0U,
-  .button_threshold = HANDBRAKE_DEFAULT_BUTTON_THRESH,
-  .conf_key_code = 24U, //< Index of KEY_X
-  .mode = HANDBRAKE_ANALOG_MODE,
-  .led_brightness = HANDBRAKE_LED_DEFAULT_BRIGHTNESS,
-  .upper_deadband_percent = HANDBRAKE_UPPER_DEADZONE_BAND,
-  .lower_deadband_percent = HANDBRAKE_LOWER_DEADZONE_BAND,
+static const eepromData_t k_default_save_data =
+    {
+        .rev_number = REVISION_NUM,
+        .data_size = sizeof(eepromData_t),
+        .cal_max = 0U,
+        .cal_min = 0U,
+        .button_threshold = HANDBRAKE_DEFAULT_BUTTON_THRESH,
+        .conf_key_code = 24U, //< Index of KEY_X
+        .mode = HANDBRAKE_ANALOG_MODE,
+        .led_brightness = HANDBRAKE_LED_DEFAULT_BRIGHTNESS,
+        .upper_deadband_percent = HANDBRAKE_UPPER_DEADZONE_BAND,
+        .lower_deadband_percent = HANDBRAKE_LOWER_DEADZONE_BAND,
 };
 
 // ********** INPUT CONFIG ************/
@@ -227,13 +213,14 @@ static const uint32_t hall_analog_pin = 0U;
 /**
  * @brief Initializes the Handbrake controller. Standard Arduino setup function.
  */
-void setup(void) {
+void setup(void)
+{
   // Set LED color
   rgb.setColor(Color::OFF);
 
   // Setup config pins
   pinMode(config_button_pin, INPUT_PULLUP);
-   
+
   // you can print to the serial monitor while the joystick is active!
   Serial.begin(9600);
 
@@ -254,18 +241,17 @@ void setup(void) {
   // Set initial joystick conditions
   handbrakeInitialConditions();
 
-
-  #if HANDBRAKE_DEBUG
+#if HANDBRAKE_DEBUG
   delay(2500);
   Serial.println("\f*** USB Handbrake Initialized! ***");
-  #endif
+#endif
 
-  // Load EEPROM data into global structure 
+  // Load EEPROM data into global structure
   handbrakeLoadSettings(&g_saved_data);
   bool settings_result = handbrakeValidateSettings(&g_saved_data);
 
   // Default some settings if the settings are not valid
-  if(!settings_result)
+  if (!settings_result)
   {
     // Default the deadbands
     g_saved_data.upper_deadband_percent = HANDBRAKE_UPPER_DEADZONE_BAND;
@@ -273,23 +259,23 @@ void setup(void) {
   }
 
   // If mode is undefined, load analog mode
-  if ((g_saved_data.mode == 0U) || 
+  if ((g_saved_data.mode == 0U) ||
       (g_saved_data.mode > (HANDBRAKE_NUM_MODES - 1U)))
   {
     g_saved_data.mode = HANDBRAKE_ANALOG_MODE;
   }
 
   // Keep LED from being completely off
-  if(g_saved_data.led_brightness == 0U)
+  if (g_saved_data.led_brightness == 0U)
   {
     g_saved_data.led_brightness = HANDBRAKE_LED_DEFAULT_BRIGHTNESS;
   }
 
-  // Update last mode to the current mode 
+  // Update last mode to the current mode
   g_last_mode = g_saved_data.mode;
 
   // if eeprom doesn't contain valid data, write it now
-  if(!settings_result)
+  if (!settings_result)
   {
     handbrakeUpdateSettings(&g_saved_data);
   }
@@ -302,7 +288,8 @@ void setup(void) {
 /**
  * @brief Main loop for the Handbrake controller. Standard Arduino loop function.
  */
-void loop(void) {
+void loop(void)
+{
 
   // Holds the mode for the last loop cycle
   static uint8_t previous_mode = 0U;
@@ -316,23 +303,23 @@ void loop(void) {
       (g_saved_data.mode == HANDBRAKE_BUTTON_MODE))
   {
     //Apply calibration transform to the data
-    float divisior = (g_saved_data.cal_max -  g_saved_data.cal_min);
+    float divisior = (g_saved_data.cal_max - g_saved_data.cal_min);
     float position = HANDBRAKE_POSITION_MIN;
 
     // Calculate position (0.0F - 100.0F)
     // Avoid div by 0
-    if(divisior > HANDBRAKE_POSITION_MIN)
+    if (divisior > HANDBRAKE_POSITION_MIN)
     {
       // limit data from going below the calibrated min value
       // but don't modify the incoming data
       uint16_t adjusted_data = max(data, g_saved_data.cal_min);
-      
+
       // Calculate position
       position = ((float)(adjusted_data - g_saved_data.cal_min) / divisior) * HANDBRAKE_POSITION_MAX;
     }
 
-    // Limit position 
-    if(position < HANDBRAKE_POSITION_MIN)
+    // Limit position
+    if (position < HANDBRAKE_POSITION_MIN)
     {
       position = HANDBRAKE_POSITION_MIN;
     }
@@ -345,13 +332,13 @@ void loop(void) {
       // Don't modify the value
     }
 
-    // Report calculated position
-    #if HANDBRAKE_DEBUG_VERBOSE
+// Report calculated position
+#if HANDBRAKE_DEBUG_VERBOSE
     Serial.print("data: ");
     Serial.print(data);
     Serial.print(" | position: ");
     Serial.println(position);
-    #endif
+#endif
 
     if (g_saved_data.mode == HANDBRAKE_ANALOG_MODE)
     {
@@ -368,8 +355,8 @@ void loop(void) {
       }
       // Release the button if below the threshold with the hysteresis or if
       // position happens to become 0
-      else if((position < (float)(g_saved_data.button_threshold  - HANDBRAKE_THRESH_HYSTERESIS)) || 
-              (position == 0.0f))
+      else if ((position < (float)(g_saved_data.button_threshold - HANDBRAKE_THRESH_HYSTERESIS)) ||
+               (position == 0.0f))
       {
         Joystick.button(HANDBRAKE_JOY_BUTTON, false);
       }
@@ -388,8 +375,8 @@ void loop(void) {
       }
       // Release the button if below the threshold with the hysteresis or if
       // position happens to become 0
-      else if((position < (float)(g_saved_data.button_threshold - HANDBRAKE_THRESH_HYSTERESIS)) || 
-              (position == 0.0f))
+      else if ((position < (float)(g_saved_data.button_threshold - HANDBRAKE_THRESH_HYSTERESIS)) ||
+               (position == 0.0f))
       {
         Keyboard.set_key1(0);
       }
@@ -399,7 +386,7 @@ void loop(void) {
       }
     }
   }
-  else if(g_saved_data.mode == HANDBRAKE_CONFIG_MODE)
+  else if (g_saved_data.mode == HANDBRAKE_CONFIG_MODE)
   {
     // Do Configuration
     // Process serial commands
@@ -408,19 +395,18 @@ void loop(void) {
       handbrakeProcessSerial();
     }
   }
-  else if(g_saved_data.mode == HANDBRAKE_CALIBRATE_MODE)
+  else if (g_saved_data.mode == HANDBRAKE_CALIBRATE_MODE)
   {
     // Do calibration
     // Find limits for calibration
     g_cal_data_min = min(data, g_cal_data_min);
     g_cal_data_max = max(data, g_cal_data_max);
-
   }
   else
   {
-    #if HANDBRAKE_DEBUG
+#if HANDBRAKE_DEBUG
     Serial.println("Mode changed to: UNKNOWN");
-    #endif
+#endif
     assert(false);
   }
 
@@ -429,36 +415,36 @@ void loop(void) {
 
   // Process events upon state changes
   // Holds the mode for the last loop cycles from mode changes
-  if(previous_mode != g_saved_data.mode)
+  if (previous_mode != g_saved_data.mode)
   {
     // Store the previously selected mode into last mode, so we can return if needed
     g_last_mode = previous_mode;
 
-    // Print out the mode change info
-    #if HANDBRAKE_DEBUG
-      // Holds the mode for the last loop cycleG
+// Print out the mode change info
+#if HANDBRAKE_DEBUG
+    // Holds the mode for the last loop cycleG
     assert((previous_mode < HANDBRAKE_NUM_MODES) && (g_saved_data.mode < HANDBRAKE_NUM_MODES));
     Serial.print("Mode changed: ");
-      // Holds the mode for the last loop cycle
+    // Holds the mode for the last loop cycle
     Serial.print(k_mode_names[previous_mode]);
     Serial.print(" -> ");
     Serial.println(k_mode_names[g_saved_data.mode]);
-    #endif
+#endif
 
     // If current mode is normal operating mode, save to eeprom
-    if((g_saved_data.mode == HANDBRAKE_KEYBOARD_MODE) ||
-       (g_saved_data.mode == HANDBRAKE_BUTTON_MODE)   ||
-       (g_saved_data.mode == HANDBRAKE_ANALOG_MODE))
-       {
-        handbrakeUpdateSettings(&g_saved_data);
-       }
+    if ((g_saved_data.mode == HANDBRAKE_KEYBOARD_MODE) ||
+        (g_saved_data.mode == HANDBRAKE_BUTTON_MODE) ||
+        (g_saved_data.mode == HANDBRAKE_ANALOG_MODE))
+    {
+      handbrakeUpdateSettings(&g_saved_data);
+    }
 
     // HANDLE EVENTS FOR ENTERING MODE
-    if(g_saved_data.mode == HANDBRAKE_CONFIG_MODE)
+    if (g_saved_data.mode == HANDBRAKE_CONFIG_MODE)
     {
       printConfigMenu();
     }
-    else if(g_saved_data.mode == HANDBRAKE_CALIBRATE_MODE)
+    else if (g_saved_data.mode == HANDBRAKE_CALIBRATE_MODE)
     {
       // Change LED for Calibrate mode special case
       rgb.setColor(Color::WHITE);
@@ -472,23 +458,23 @@ void loop(void) {
     {
       // Do nothing...
     }
-    
+
     // HANDLE EVENT FOR LEAVING MODE
     // Holds the mode for the last loop cycle
-    if(previous_mode == HANDBRAKE_CALIBRATE_MODE)
+    if (previous_mode == HANDBRAKE_CALIBRATE_MODE)
     {
       // Calculate the deadband
-      uint32_t upper_deadband = (uint32_t)((float)(g_cal_data_max - g_cal_data_min) * 
-      ((float)g_saved_data.upper_deadband_percent / 100.0f));
-      uint32_t lower_deadband = (uint32_t)((float)(g_cal_data_max - g_cal_data_min) * 
-      ((float)g_saved_data.lower_deadband_percent / 100.0f));
+      uint32_t upper_deadband = (uint32_t)((float)(g_cal_data_max - g_cal_data_min) *
+                                           ((float)g_saved_data.upper_deadband_percent / 100.0f));
+      uint32_t lower_deadband = (uint32_t)((float)(g_cal_data_max - g_cal_data_min) *
+                                           ((float)g_saved_data.lower_deadband_percent / 100.0f));
 
       // Calibration mode has been exited, store new calibration values
       // narrowed by the deadband value
       g_saved_data.cal_max = g_cal_data_max - upper_deadband;
       g_saved_data.cal_min = g_cal_data_min + lower_deadband;
 
-      #if HANDBRAKE_DEBUG
+#if HANDBRAKE_DEBUG
       Serial.print("Raw Calibration (no deadband) (min,max): ");
       Serial.print(g_cal_data_min);
       Serial.print(",");
@@ -497,7 +483,7 @@ void loop(void) {
       Serial.print(g_saved_data.cal_min);
       Serial.print(",");
       Serial.println(g_saved_data.cal_max);
-      #endif
+#endif
 
       // Save the data to eeprom
       handbrakeUpdateSettings(&g_saved_data);
@@ -510,7 +496,7 @@ void loop(void) {
   // Service the LED
   rgb.serviceLED();
 
-  // Set previous mode 
+  // Set previous mode
   // Holds the mode for the last loop cycleus mode to current mode
   previous_mode = g_saved_data.mode;
 
@@ -526,7 +512,7 @@ static void handbrakeProcessSerial(void)
 {
   // Process Recognized commands
   uint8_t byte = Serial.read();
-  if (byte == '1')      // Key Binding 
+  if (byte == '1') // Key Binding
   {
     Serial.print("Please type the name of the key to bind and press ENTER:\r\n\r\n");
     uint32_t idx; 
@@ -606,23 +592,23 @@ static uint32_t handbrakeProcessSerialFindKey(uint32_t origional_value)
 }
 #endif
 
-static uint32_t handbrakeProcessSerialLong(uint32_t upper_bound, uint32_t lower_bound, 
-uint32_t origional_value)
+static uint32_t handbrakeProcessSerialLong(uint32_t upper_bound, uint32_t lower_bound,
+                                           uint32_t original_value)
 {
-  uint32_t val = origional_value;
-  uint32_t num_bytes = Serial.readBytesUntil('\r', &g_serial_buff[0U], 5U);
-   if (num_bytes > 0)
-   {
-     val = strtoul((const char *)&g_serial_buff[0U], NULL, 10);
-     // Keep the value bounded
-     val = (val > upper_bound) ? upper_bound : val;
-     val = (val < lower_bound) ? lower_bound : val;
-   }
-   else
-   {
-     Serial.print("Timed Out.");
-   }
-   return val;
+  uint32_t val = original_value;
+  uint32_t num_bytes = serialReadBytes(&g_serial_buff[0U], HANDBRAKE_SERIAL_BUFF_SIZE, 5000U);
+  if (num_bytes > 0)
+  {
+    val = strtoul((const char *)&g_serial_buff[0U], NULL, 10);
+    // Keep the value bounded
+    val = (val > upper_bound) ? upper_bound : val;
+    val = (val < lower_bound) ? lower_bound : val;
+  }
+  else
+  {
+    Serial.print("Timed Out.");
+  }
+  return val;
 }
 
 /**
@@ -637,9 +623,9 @@ static void handbrakeServiceModeButton(void)
 
   bool button_held = false;
   static unsigned long hold_time_start = 0U;
-  if(button_curr_state)
+  if (button_curr_state)
   {
-    if((millis() - hold_time_start) > HANDBRAKE_BUTTON_HOLD_TIME_MS)
+    if ((millis() - hold_time_start) > HANDBRAKE_BUTTON_HOLD_TIME_MS)
     {
       // Change mode to Calibrate Mode
       g_saved_data.mode = HANDBRAKE_CALIBRATE_MODE;
@@ -656,18 +642,18 @@ static void handbrakeServiceModeButton(void)
   }
 
   // Detect a change in state only on release
-  if((button_curr_state ^ button_prev_state) && !button_curr_state && !button_held)
-  {    
+  if ((button_curr_state ^ button_prev_state) && !button_curr_state && !button_held)
+  {
     // Find index of current mode
     uint32_t mode_idx = handbrakeGetModeIdx();
 
     // Advance the mode idx to the next valid mode, 
     // if current mode is not calibration
-    if(g_saved_data.mode != HANDBRAKE_CALIBRATE_MODE)
+    if (g_saved_data.mode != HANDBRAKE_CALIBRATE_MODE)
     {
-      if(++mode_idx >= COUNT_OF(modes))
+      if (++mode_idx >= COUNT_OF(modes))
       {
-          mode_idx = 0U;
+        mode_idx = 0U;
       }
     }
     // Set the current mode and the LED
@@ -688,15 +674,17 @@ static void handbrakeUpdateSettings(eepromData_t *p_data)
 {
   // Populate the Rev Number and data size before saving
   p_data->rev_number = REVISION_NUM;
-  p_data->data_size  = sizeof(eepromData_t);
+  p_data->data_size = sizeof(eepromData_t);
 
   // Now save the data
   uint32_t num_bytes = EEPROM.updateBlock(HANDBRAKE_EEPROM_ADDR, *p_data);
 
-  #if HANDBRAKE_DEBUG
+#if HANDBRAKE_DEBUG
   Serial.print("Save Settings: Bytes: ");
   Serial.println(num_bytes);
-  #endif
+#else
+  UNUSED(num_bytes);
+#endif
 }
 
 /**
@@ -708,10 +696,10 @@ static void handbrakeLoadSettings(eepromData_t *p_data)
   uint32_t num_bytes = EEPROM.readBlock(HANDBRAKE_EEPROM_ADDR, *p_data);
   assert(num_bytes == sizeof(*p_data));
 
-  #if HANDBRAKE_DEBUG
+#if HANDBRAKE_DEBUG
   Serial.print("Load Settings: Bytes: ");
   Serial.println(num_bytes);
-  #endif
+#endif
 }
 
 /**
@@ -721,14 +709,14 @@ static void handbrakeLoadSettings(eepromData_t *p_data)
  */
 static bool handbrakeValidateSettings(const eepromData_t *p_data)
 {
-  bool result = 
-    ((p_data->rev_number == REVISION_NUM) &&
-    (p_data->data_size == sizeof(eepromData_t)));
-  
-  #if HANDBRAKE_DEBUG
+  bool result =
+      ((p_data->rev_number == REVISION_NUM) &&
+       (p_data->data_size == sizeof(eepromData_t)));
+
+#if HANDBRAKE_DEBUG
   Serial.print("Validate Settings: ");
   Serial.println((result ? "VALID" : "INVALID"));
-  #endif
+#endif
 
   return result;
 }
@@ -749,7 +737,6 @@ static void handbrakeInitialConditions(void)
 
   Joystick.send_now();
 }
-
 
 static uint32_t handbrakeGetModeIdx(void)
 {
