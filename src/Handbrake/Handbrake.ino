@@ -248,6 +248,12 @@ void setup(void)
   Serial.println("\f*** USB Handbrake Initialized! ***");
 #endif
 
+  // Limit the number of EEPROM write to 200, in-case something gets
+  // messed up. This will keep the EEPROM cell from getting worn out prematurely
+  // The side-effect from hitting the limit during normal use would be any 
+  // changes made to the EEPROM data after 200 writes would not be saved. 
+  EEPROM.setMaxAllowedWrites(200U);
+
   // Load EEPROM data into global structure
   handbrakeLoadSettings(&g_saved_data);
   bool settings_result = handbrakeValidateSettings(&g_saved_data);
