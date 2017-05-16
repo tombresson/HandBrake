@@ -3,7 +3,7 @@
 
 /************************************** MACROS **************************************/
 
-#define assert( a ) if (!a) { __assert(__FUNCTION__, __FILE__, __LINE__,  #a); }
+#define assert( a ) if (!(a)) { __assert(__FUNCTION__, __FILE__, __LINE__,  #a); }
 #define COUNT_OF(x) ((sizeof(x) / sizeof(0 [x])) / ((size_t)(!(sizeof(x) % sizeof(0 [x])))))
 #define UNUSED(x) (void)(x)
 
